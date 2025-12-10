@@ -1,0 +1,38 @@
+# Core Framework
+fastapi==0.124.0
+uvicorn[standard]==0.38.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
+python-multipart==0.0.20
+python-dotenv==1.2.1
+
+# Database
+supabase==2.25.0
+
+# AI & LangChain Core
+langchain==1.1.3
+langchain-community==0.4.1
+langchain-text-splitters==1.0.0
+
+# PDF Processing
+pymupdf==1.26.6
+
+# Text Processing (for token counting - used by LangChain)
+tiktoken==0.12.0
+
+# HTTP & Async
+httpx==0.28.1
+aiofiles==25.1.0
+
+# Utilities
+python-json-logger==4.0.0
+
+# ===== AI PROVIDERS =====
+
+# OpenAI (for LLM - optional, configure in .env)
+openai
+langchain-openai
+
+# HuggingFace (for embeddings - REQUIRED)
+sentence-transformers==5.1.2
+torch==2.9.1

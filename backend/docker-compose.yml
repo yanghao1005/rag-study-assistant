@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-study-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./uploads:/app/uploads
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  # Optional: Local Ollama for testing (uncomment to use)
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: rag-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   networks:
+  #     - rag-network
+
+networks:
+  rag-network:
+    driver: bridge
+
+# volumes:
+#   ollama-data:
