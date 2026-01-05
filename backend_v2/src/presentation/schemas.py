@@ -20,6 +20,7 @@ class SearchRequest(BaseModel):
     subject_id: Optional[UUID] = None
     document_id: Optional[UUID] = None
     top_k: int = 5
+    type: str = "answer" # 'answer', 'quiz', 'flashcards'
 
 class SearchResult(BaseModel):
     id: UUID

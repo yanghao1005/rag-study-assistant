@@ -1,9 +1,23 @@
 from typing import List
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from sentence_transformers import SentenceTransformer
 from src.domain.ports import LLMService, EmbeddingService
 from src.config import get_settings
 from src.core.logging import logger
+
+class OpenAIEmbeddingService(EmbeddingService):
+    def __init__(self):
+        settings = get_settings()
+        self.model = OpenAIEmbeddings(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.DEFAULT_EMBEDDING_MODEL or "text-embedding-3-small"
+        )
+
+    async def embed_text(self, text: str) -> List[float]:
+        return await self.model.aembed_query(text)
+
+    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        return await self.model.aembed_documents(texts)
 
 class OpenAILLMService(LLMService):
     def __init__(self):

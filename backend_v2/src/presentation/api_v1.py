@@ -6,7 +6,7 @@ from pathlib import Path
 
 from src.container import Container
 from src.application.use_cases.ingest_document import IngestDocumentUseCase
-from src.application.use_cases.rag_query import RAGQueryUseCase
+from src.application.use_cases.simple_rag import SimpleRAGUseCase
 from src.presentation.schemas import DocumentResponse, SearchRequest, RAGResponse
 
 router = APIRouter()
@@ -22,7 +22,6 @@ async def upload_document(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     container: Container = Depends(get_container)
 ):
-    # Save file temporarily
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
     file_path = upload_dir / f"{subject_id}_{file.filename}"
@@ -38,36 +37,6 @@ async def upload_document(
         container.text_chunker
     )
     
-    # Run ingestion immediately (or background)
-    # For now, we'll run it async but wait for the doc creation part, 
-    # ideally we should kick off a task.
-    # The Use Case handles doc creation then processing.
-    
-    # We'll run proper background task
-    # But we need to create the doc first to return it.
-    # Refactoring use case to split creation and processing?
-    # Or just run the whole thing in background?
-    # User expects a document ID.
-    
-    # Let's simple it:
-    # 1. Create a "pending" document manually here or via a small service call?
-    # The Use Case does it all. Let's call it awaitable for now to see errors, 
-    # OR run in background.
-    
-    # Better: Run entirely in background, but we need the ID.
-    # I'll update UseCase to be split or just await it for MVP if it's not too slow.
-    # Parsing PDF can be slow.
-    
-    # Let's just await it for now as per "simple implementation" requests often imply
-    # straightforward logic. The user didn't ask for background tasks explicitly 
-    # but "scalable" implies it.
-    
-    # Changing to Background Task:
-    # We need to create the doc entity first to return 202 Accepted.
-    
-    # Hack: I'll stick to awaiting for the MVP to ensure it works before optimizing.
-    # It allows immediate feedback on errors.
-    
     doc = await use_case.execute(
         str(file_path), 
         subject_id, 
@@ -77,11 +46,11 @@ async def upload_document(
     return doc
 
 @router.post("/rag/query", response_model=RAGResponse)
-async def query_rag(
+async def query_simple_rag(
     request: SearchRequest,
     container: Container = Depends(get_container)
 ):
-    use_case = RAGQueryUseCase(
+    use_case = SimpleRAGUseCase(
         container.vector_store,
         container.embedding_service,
         container.llm_service

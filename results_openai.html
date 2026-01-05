@@ -1,0 +1,138 @@
+
+    <html>
+    <head>
+        <title>RAG Benchmark Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .answer { white-space: pre-wrap; font-family: monospace; background: #f9f9f9; padding: 10px; }
+            .meta { font-size: 0.9em; color: #666; }
+        </style>
+    </head>
+    <body>
+        <h1>RAG Benchmark Report</h1>
+    <h3>Configuration: LLM=openai/gpt-4o-mini, Embedding=openai/text-embedding-3-small</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%">Query / Type</th>
+                    <th style="width: 60%">Response</th>
+                    <th style="width: 25%">Metrics</th>
+                </tr>
+            </thead>
+            <tbody>
+    
+            <tr>
+                <td>
+                    <b>What is the main topic of these documents?</b><br>
+                    <span class="meta">Type: answer</span>
+                </td>
+                <td>
+                    <div class="answer">I generated an answer, but it doesn't seem to address your specific question fully.</div>
+                </td>
+                <td>
+                    Time: 9.15s<br>
+                    Context Docs: 0
+                </td>
+            </tr>
+        
+            <tr>
+                <td>
+                    <b>Explain the key concepts found.</b><br>
+                    <span class="meta">Type: answer</span>
+                </td>
+                <td>
+                    <div class="answer">I generated an answer, but it doesn't seem to address your specific question fully.</div>
+                </td>
+                <td>
+                    Time: 8.34s<br>
+                    Context Docs: 0
+                </td>
+            </tr>
+        
+            <tr>
+                <td>
+                    <b>Create a quiz about the introduction.</b><br>
+                    <span class="meta">Type: quiz</span>
+                </td>
+                <td>
+                    <div class="answer">I generated an answer, but it doesn't seem to address your specific question fully.</div>
+                </td>
+                <td>
+                    Time: 9.15s<br>
+                    Context Docs: 0
+                </td>
+            </tr>
+        
+            <tr>
+                <td>
+                    <b>What are the conclusions?</b><br>
+                    <span class="meta">Type: answer</span>
+                </td>
+                <td>
+                    <div class="answer">I generated an answer, but it doesn't seem to address your specific question fully.</div>
+                </td>
+                <td>
+                    Time: 7.93s<br>
+                    Context Docs: 0
+                </td>
+            </tr>
+        
+            <tr>
+                <td>
+                    <b>Generate flashcards for the first chapter.</b><br>
+                    <span class="meta">Type: flashcards</span>
+                </td>
+                <td>
+                    <div class="answer">I generated an answer, but it doesn't seem to address your specific question fully.</div>
+                </td>
+                <td>
+                    Time: 7.75s<br>
+                    Context Docs: 0
+                </td>
+            </tr>
+        
+            <tr>
+                <td>
+                    <b>generate flashcards for Business Model Canvas concepts</b><br>
+                    <span class="meta">Type: flashcards</span>
+                </td>
+                <td>
+                    <div class="answer">**Flashcard 1**  
+**Front:** What is the Business Model Canvas (BMC)?  
+**Back:** The BMC is a strategic management and lean startup template for developing new or documenting existing business models. It was created in 2005 by Alexander Osterwalder and is characterized by its visual format organized into blocks, allowing for quick identification of key activities across various industries.
+
+---
+
+**Flashcard 2**  
+**Front:** What are the key components of the Business Model Canvas?  
+**Back:** The key components of the Business Model Canvas include:  
+1. Key Partners  
+2. Key Activities  
+3. Key Resources  
+4. Value Propositions  
+5. Customer Segments  
+6. Customer Relationships  
+7. Channels  
+8. Cost Structure  
+9. Revenue Streams  
+
+---
+
+**Flashcard 3**  
+**Front:** What are Value Propositions in the context of the Business Model Canvas?  
+**Back:** Value Propositions refer to the products and services offered to customers. They address what value is delivered to the client, which customer problems are being solved, and which customer needs are being satisfied, and are directly linked to the identified Customer Segments.</div>
+                </td>
+                <td>
+                    Time: 11.41s<br>
+                    Context Docs: 5
+                </td>
+            </tr>
+        
+            </tbody>
+        </table>
+    </body>
+    </html>
+    

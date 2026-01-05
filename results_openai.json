@@ -1,0 +1,68 @@
+[
+  {
+    "query": "What is the main topic of these documents?",
+    "type": "answer",
+    "answer": "I generated an answer, but it doesn't seem to address your specific question fully.",
+    "context_count": 0,
+    "duration_seconds": 9.149042,
+    "model_config": {
+      "llm": "openai/gpt-4o-mini",
+      "embedding": "openai/text-embedding-3-small"
+    }
+  },
+  {
+    "query": "Explain the key concepts found.",
+    "type": "answer",
+    "answer": "I generated an answer, but it doesn't seem to address your specific question fully.",
+    "context_count": 0,
+    "duration_seconds": 8.340631,
+    "model_config": {
+      "llm": "openai/gpt-4o-mini",
+      "embedding": "openai/text-embedding-3-small"
+    }
+  },
+  {
+    "query": "Create a quiz about the introduction.",
+    "type": "quiz",
+    "answer": "I generated an answer, but it doesn't seem to address your specific question fully.",
+    "context_count": 0,
+    "duration_seconds": 9.147896,
+    "model_config": {
+      "llm": "openai/gpt-4o-mini",
+      "embedding": "openai/text-embedding-3-small"
+    }
+  },
+  {
+    "query": "What are the conclusions?",
+    "type": "answer",
+    "answer": "I generated an answer, but it doesn't seem to address your specific question fully.",
+    "context_count": 0,
+    "duration_seconds": 7.931764,
+    "model_config": {
+      "llm": "openai/gpt-4o-mini",
+      "embedding": "openai/text-embedding-3-small"
+    }
+  },
+  {
+    "query": "Generate flashcards for the first chapter.",
+    "type": "flashcards",
+    "answer": "I generated an answer, but it doesn't seem to address your specific question fully.",
+    "context_count": 0,
+    "duration_seconds": 7.752117,
+    "model_config": {
+      "llm": "openai/gpt-4o-mini",
+      "embedding": "openai/text-embedding-3-small"
+    }
+  },
+  {
+    "query": "generate flashcards for Business Model Canvas concepts",
+    "type": "flashcards",
+    "answer": "**Flashcard 1**  \n**Front:** What is the Business Model Canvas (BMC)?  \n**Back:** The BMC is a strategic management and lean startup template for developing new or documenting existing business models. It was created in 2005 by Alexander Osterwalder and is characterized by its visual format organized into blocks, allowing for quick identification of key activities across various industries.\n\n---\n\n**Flashcard 2**  \n**Front:** What are the key components of the Business Model Canvas?  \n**Back:** The key components of the Business Model Canvas include:  \n1. Key Partners  \n2. Key Activities  \n3. Key Resources  \n4. Value Propositions  \n5. Customer Segments  \n6. Customer Relationships  \n7. Channels  \n8. Cost Structure  \n9. Revenue Streams  \n\n---\n\n**Flashcard 3**  \n**Front:** What are Value Propositions in the context of the Business Model Canvas?  \n**Back:** Value Propositions refer to the products and services offered to customers. They address what value is delivered to the client, which customer problems are being solved, and which customer needs are being satisfied, and are directly linked to the identified Customer Segments.",
+    "context_count": 5,
+    "duration_seconds": 11.406682,
+    "model_config": {
+      "llm": "openai/gpt-4o-mini",
+      "embedding": "openai/text-embedding-3-small"
+    }
+  }
+]

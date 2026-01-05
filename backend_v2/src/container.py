@@ -10,8 +10,32 @@ class Container:
         self.subject_repository = SupabaseSubjectRepository()
         self.document_repository = SupabaseDocumentRepository()
         self.vector_store = SupabaseVectorStore()
-        self.llm_service = OpenAILLMService()
-        self.embedding_service = HuggingFaceEmbeddingService()
+        
+        # Load Settings
+        from src.config import get_settings
+        settings = get_settings()
+        
+        # LLM Factory
+        if settings.DEFAULT_LLM_PROVIDER == "openai":
+            from src.infrastructure.ai.services import OpenAILLMService
+            self.llm_service = OpenAILLMService()
+        else:
+             # Default or fallback
+            from src.infrastructure.ai.services import OpenAILLMService
+            self.llm_service = OpenAILLMService()
+
+        # Embedding Factory
+        if settings.DEFAULT_EMBEDDING_PROVIDER == "openai":
+            from src.infrastructure.ai.services import OpenAIEmbeddingService
+            self.embedding_service = OpenAIEmbeddingService()
+        elif settings.DEFAULT_EMBEDDING_PROVIDER == "huggingface":
+            from src.infrastructure.ai.services import HuggingFaceEmbeddingService
+            self.embedding_service = HuggingFaceEmbeddingService()
+        else:
+            # Default
+            from src.infrastructure.ai.services import HuggingFaceEmbeddingService
+            self.embedding_service = HuggingFaceEmbeddingService()
+
         self.file_parser = PyMuPDFParser()
         self.text_chunker = LangChainTextChunker()
 

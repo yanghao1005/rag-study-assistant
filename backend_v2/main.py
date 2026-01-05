@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from src.presentation.api import router as api_router
+from src.presentation.api_v1 import router as api_v1_router
+from src.presentation.api_v2 import router as api_v2_router
 from src.config import get_settings
 
 # Load environment variables
@@ -14,7 +15,7 @@ settings = get_settings()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json", # Defaults to V1 as primary for now or just root
     description="Clean Architecture implementation of RAG Study Assistant"
 )
 
@@ -28,7 +29,6 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 else:
-    # Default permissive CORS for dev
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -37,7 +37,9 @@ else:
         allow_headers=["*"],
     )
 
-app.include_router(api_router, prefix=settings.API_V1_STR)
+# Include Routers
+app.include_router(api_v1_router, prefix="/api/v1")
+app.include_router(api_v2_router, prefix="/api/v2")
 
 @app.get("/health")
 def health_check():

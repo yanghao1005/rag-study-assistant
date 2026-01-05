@@ -1,11 +1,11 @@
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from uuid import UUID
 import logging
 from src.domain.ports import VectorStore, LLMService, EmbeddingService
 
 logger = logging.getLogger("rag_backend_v2")
 
-class RAGQueryUseCase:
+class SimpleRAGUseCase:
     def __init__(
         self,
         vector_store: VectorStore,
@@ -24,7 +24,7 @@ class RAGQueryUseCase:
         top_k: int = 5
     ) -> Dict[str, Any]:
         
-        logger.info(f"Processing RAG query: {query}")
+        logger.info(f"Processing Simple RAG query: {query}")
         
         # 1. Embed Query
         query_embedding = await self.embedding_service.embed_text(query)
@@ -39,7 +39,7 @@ class RAGQueryUseCase:
         
         if not results:
             return {
-                "answer": "I couldn't find any relevant information in the uploaded documents.",
+                "answer": "I couldn't find any relevant information.",
                 "context": []
             }
 
@@ -50,7 +50,7 @@ class RAGQueryUseCase:
         ])
         
         prompt = f"""
-        You are a helpful study assistant. specific Answer the question below based ONLY on the provided context.
+        You are a helpful study assistant. Answer the question below based ONLY on the provided context.
         If the answer is not in the context, say "I don't have enough information to answer that."
         
         Context:
