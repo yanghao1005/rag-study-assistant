@@ -8,7 +8,7 @@
 ## 2. Tech Stack & Architecture
 
 ### Frontend (Client)
-* **Framework:** Next.js 14+ (App Router).
+* **Framework:** Next.js 16+ (App Router).
 * **Language:** TypeScript.
 * **Styling:** Tailwind CSS.
 * **UI Library:** Shadcn/ui (for accessible, professional components).

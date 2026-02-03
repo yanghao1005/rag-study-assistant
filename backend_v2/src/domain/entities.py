@@ -29,6 +29,8 @@ class Document:
     file_path: Optional[str] = None
     file_size_mb: Optional[float] = None
     page_count: Optional[int] = None
+    summary: Optional[str] = None
+    index: Optional[Dict[str, Any]] = None
     status: str = "pending" # pending, processing, completed, failed
     error_message: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -41,6 +43,8 @@ class Document:
             subject_id=subject_id,
             title=title,
             file_path=file_path,
+            summary=None,
+            index=None,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )

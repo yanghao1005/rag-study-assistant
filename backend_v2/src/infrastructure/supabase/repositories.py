@@ -66,6 +66,8 @@ class SupabaseDocumentRepository(DocumentRepository):
             "file_path": document.file_path,
             "file_size_mb": document.file_size_mb,
             "page_count": document.page_count,
+            "summary": document.summary,
+            "index": document.index,
             "status": document.status,
             "error_message": document.error_message,
             "created_at": document.created_at.isoformat(),
@@ -104,6 +106,8 @@ class SupabaseDocumentRepository(DocumentRepository):
             file_path=data.get("file_path"),
             file_size_mb=data.get("file_size_mb"),
             page_count=data.get("page_count"),
+            summary=data.get("summary"),
+            index=data.get("index"),
             status=data.get("status", "pending"),
             error_message=data.get("error_message"),
             created_at=datetime.fromisoformat(data["created_at"]),
@@ -160,3 +164,49 @@ class SupabaseVectorStore(VectorStore):
     async def delete_by_document(self, document_id: UUID) -> int:
         response = self.client.table(self.table).delete().eq("document_id", str(document_id)).execute()
         return len(response.data)
+
+    async def get_chunks_by_ids(self, chunk_ids: List[UUID]) -> List[Chunk]:
+        if not chunk_ids:
+            return []
+        
+        # Convert UUIDs to strings
+        ids_str = [str(uid) for uid in chunk_ids]
+        
+        # In Supabase, use filter "in"
+        response = self.client.table(self.table).select("*").in_("id", ids_str).execute()
+        
+        chunks = []
+        for data in response.data:
+            chunks.append(Chunk(
+                id=UUID(data["id"]),
+                document_id=UUID(data["document_id"]),
+                content=data["content"],
+                chunk_index=data["chunk_index"],
+                page_num=data.get("page_num"),
+                chapter_name=data.get("chapter_name"),
+                metadata=data.get("metadata", {}),
+                embedding=data.get("embedding"), # Note: might need conversion if it's a string, assuming list
+                created_at=datetime.fromisoformat(data["created_at"])
+            ))
+        return chunks
+
+    async def get_chunks_by_index(self, document_id: UUID, chunk_indices: List[int]) -> List[Chunk]:
+        if not chunk_indices:
+            return []
+        
+        response = self.client.table(self.table).select("*").eq("document_id", str(document_id)).in_("chunk_index", chunk_indices).execute()
+        
+        chunks = []
+        for data in response.data:
+            chunks.append(Chunk(
+                id=UUID(data["id"]),
+                document_id=UUID(data["document_id"]),
+                content=data["content"],
+                chunk_index=data["chunk_index"],
+                page_num=data.get("page_num"),
+                chapter_name=data.get("chapter_name"),
+                metadata=data.get("metadata", {}),
+                embedding=data.get("embedding"), 
+                created_at=datetime.fromisoformat(data["created_at"])
+            ))
+        return chunks

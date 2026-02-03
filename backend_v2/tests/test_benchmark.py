@@ -56,7 +56,8 @@ async def run_benchmark(
         vector_store=container.vector_store,
         file_parser=container.file_parser,
         text_chunker=container.text_chunker,
-        embedding_service=container.embedding_service
+        embedding_service=container.embedding_service,
+        llm_service=container.llm_service
     )
     
     rag_service = AgenticRAGUseCase(

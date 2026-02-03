@@ -34,7 +34,8 @@ async def upload_document(
         container.vector_store,
         container.embedding_service,
         container.file_parser,
-        container.text_chunker
+        container.text_chunker,
+        container.llm_service
     )
     
     doc = await use_case.execute(

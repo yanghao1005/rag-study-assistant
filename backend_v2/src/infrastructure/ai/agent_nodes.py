@@ -1,4 +1,5 @@
 from typing import Any, Dict
+import json
 from src.domain.agent_types import GraphState
 from src.container import Container
 
@@ -12,6 +13,104 @@ class AgentNodes:
         """
         print("---RETRIEVE---")
         question = state["question"]
+        subject_id = state.get("subject_id")
+        
+        if not subject_id:
+             print("---WARN: No subject_id provided, defaulting to specific search---")
+             intent = "specific"
+        else:
+            # 1. Intent Classification
+            print("---CLASSIFY INTENT---")
+            intent_prompt = f"""
+            Classify the intent of the following user query regarding a document or subject.
+            
+            Query: "{question}"
+            
+            Categories:
+            - "specific": Asking for specific fact, number, or detail.
+            - "global_generic": Asking for a high-level summary or overview of the whole document.
+            - "section_generic": Asking for content of a specific section or broad topic (e.g., "conclusions", "introduction", "results", "flashcards", "quiz").
+            
+            Output ONLY one of: "specific", "global_generic", "section_generic".
+            """
+            try:
+                intent = await self.container.llm_service.generate(intent_prompt)
+                intent = intent.lower().strip()
+                # strip punctuation
+                import string
+                intent = intent.strip(string.punctuation)
+            except Exception as e:
+                print(f"Intent classification failed: {e}")
+                intent = "specific"
+                
+            print(f"---INTENT: {intent}---")
+
+        if intent in ["global_generic", "section_generic"]:
+             # Fetch all docs for subject
+             docs = await self.container.document_repository.get_by_subject(subject_id)
+             
+             documents = []
+             if not docs:
+                 print("---NO DOCUMENTS FOUND FOR SUBJECT---")
+                 return {"documents": [], "question": question}
+
+             if intent == "global_generic":
+                 for doc in docs:
+                     summary = doc.summary or "No summary available."
+                     documents.append({
+                         "content": f"Document Summary: {summary}\n\nTitle: {doc.title}",
+                         "metadata": {"source": "summary", "doc_id": str(doc.id)},
+                         "page_num": 0
+                     })
+             
+             elif intent == "section_generic":
+                 print("---INDEX RETRIEVAL---")
+                 for doc in docs:
+                     if not doc.index or "chunk_map" not in doc.index:
+                         continue
+                     
+                     # Extract chunk map descriptions
+                     chunk_map = doc.index.get("chunk_map", [])
+                     # Limit context to avoid overflow. 
+                     # For very large docs, we need a smarter way, but for now take first 100 descriptions or so.
+                     index_context = "\n".join([f"ID: {c.get('chunk_index')} - {c.get('description')}" for c in chunk_map[:100]]) 
+                     
+                     selection_prompt = f"""
+                     Which chunk IDs from the list below are most relevant to the user request: "{question}"?
+                     Return ONLY the IDs as a JSON list of integers. Example: [1, 5, 10]
+                     If none are relevant, return [].
+                     
+                     Index:
+                     {index_context}
+                     """
+                     
+                     try:
+                         selection_str = await self.container.llm_service.generate(selection_prompt)
+                         # Clean markdown
+                         selection_str = selection_str.replace("```json", "").replace("```", "").strip()
+                         # Extract list part
+                         if "[" in selection_str and "]" in selection_str:
+                             start = selection_str.find("[")
+                             end = selection_str.rfind("]") + 1
+                             selection_str = selection_str[start:end]
+                             indices = json.loads(selection_str)
+                             
+                             if indices:
+                                 # Fetch chunks
+                                 chunks = await self.container.vector_store.get_chunks_by_index(doc.id, indices)
+                                 # Convert to dicts
+                                 for c in chunks:
+                                     documents.append({
+                                         "content": c.content,
+                                         "metadata": c.metadata, # c.metadata is dict
+                                         "page_num": c.page_num
+                                     })
+                     except Exception as e:
+                         print(f"Index retrieval failed for doc {doc.id}: {e}")
+
+             return {"documents": documents, "question": question}
+
+        # Specific Search (Existing Logic)
         
         # Refine Query for Search
         # We want to strip instructions like "Create a quiz" and focus on the topic.
@@ -34,7 +133,7 @@ class AgentNodes:
         query_embedding = await self.container.embedding_service.embed_text(search_query)
         
         # Search
-        subject_id = state.get("subject_id")
+        # subject_id already retrieved
         results = await self.container.vector_store.search(
             query_embedding=query_embedding,
             top_k=5,

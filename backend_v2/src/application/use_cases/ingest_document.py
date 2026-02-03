@@ -1,7 +1,7 @@
 from uuid import UUID
 import logging
 from src.domain.entities import Document, Chunk
-from src.domain.ports import DocumentRepository, VectorStore, EmbeddingService, FileParser, TextChunker
+from src.domain.ports import DocumentRepository, VectorStore, EmbeddingService, FileParser, TextChunker, LLMService
 
 logger = logging.getLogger("rag_backend_v2")
 
@@ -12,13 +12,15 @@ class IngestDocumentUseCase:
         vector_store: VectorStore,
         embedding_service: EmbeddingService,
         file_parser: FileParser,
-        text_chunker: TextChunker
+        text_chunker: TextChunker,
+        llm_service: LLMService
     ):
         self.document_repository = document_repository
         self.vector_store = vector_store
         self.embedding_service = embedding_service
         self.file_parser = file_parser
         self.text_chunker = text_chunker
+        self.llm_service = llm_service
 
     async def execute(self, file_path: str, subject_id: UUID, title: str) -> Document:
         # 1. Create Document Entity (Pending)
@@ -36,6 +38,14 @@ class IngestDocumentUseCase:
             
             # 3. Chunk Text
             chunks_data = self.text_chunker.chunk_with_metadata(pages_data)
+            
+            # 3.1 Generate Document Index & Summary
+            logger.info("Generating document index and summary")
+            index_data = await self.llm_service.generate_index(chunks_data)
+            
+            doc.summary = index_data.get("document_summary")
+            doc.index = index_data
+            await self.document_repository.save(doc)
             
             # 4. Generate Embeddings (Batch)
             texts = [c["content"] for c in chunks_data]

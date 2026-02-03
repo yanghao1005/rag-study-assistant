@@ -61,9 +61,21 @@ class VectorStore(ABC):
     async def delete_by_document(self, document_id: UUID) -> int:
         pass
 
+    @abstractmethod
+    async def get_chunks_by_ids(self, chunk_ids: List[UUID]) -> List[Chunk]:
+        pass
+
+    @abstractmethod
+    async def get_chunks_by_index(self, document_id: UUID, chunk_indices: List[int]) -> List[Chunk]:
+        pass
+
 class LLMService(ABC):
     @abstractmethod
     async def generate(self, prompt: str, **kwargs) -> str:
+        pass
+
+    @abstractmethod
+    async def generate_index(self, chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
         pass
 
 class EmbeddingService(ABC):
