@@ -1,0 +1,175 @@
+// Canonical JS schema contract for Supabase tables/enums used by backend/frontend.
+// Keep this in sync with SQL migrations.
+
+const enums = {
+  app_role: ["student", "admin"],
+  plan_tier: ["free", "pro", "enterprise"],
+  document_type: ["pdf", "summary"],
+  document_status: ["processing", "ready", "error"],
+  generated_type: ["flashcard", "quiz"],
+  generation_scope: ["subject", "document", "chapter", "summary"],
+  usage_metric: [
+    "upload_requests",
+    "flashcard_requests",
+    "quiz_requests",
+    "embedding_tokens",
+    "generation_tokens",
+  ],
+};
+
+const tables = {
+  profiles: {
+    primaryKey: ["id"],
+    columns: {
+      id: "uuid",
+      email: "text",
+      full_name: "text",
+      role: "app_role",
+      is_active: "boolean",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+  subjects: {
+    primaryKey: ["id"],
+    unique: [["user_id", "name"], ["id", "user_id"]],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      name: "text",
+      description: "text",
+      color: "text",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+  documents: {
+    primaryKey: ["id"],
+    unique: [["id", "user_id"]],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      subject_id: "uuid",
+      document_type: "document_type",
+      filename: "text",
+      file_size: "bigint",
+      total_pages: "int",
+      content_text: "text",
+      status: "document_status",
+      error_message: "text",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+  chapters: {
+    primaryKey: ["id"],
+    unique: [["id", "user_id"]],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      document_id: "uuid",
+      name: "text",
+      start_page: "int",
+      end_page: "int",
+      order_index: "int",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+  document_chunks: {
+    primaryKey: ["id"],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      document_id: "uuid",
+      chapter_id: "uuid",
+      content: "text",
+      embedding: "vector(1536)",
+      metadata: "jsonb",
+      created_at: "timestamptz",
+    },
+  },
+  generated_content: {
+    primaryKey: ["id"],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      subject_id: "uuid",
+      document_id: "uuid",
+      chapter_id: "uuid",
+      scope: "generation_scope",
+      type: "generated_type",
+      content_json: "jsonb",
+      created_at: "timestamptz",
+    },
+  },
+  subscription_plans: {
+    primaryKey: ["id"],
+    unique: [["tier"]],
+    columns: {
+      id: "uuid",
+      tier: "plan_tier",
+      name: "text",
+      monthly_price_cents: "integer",
+      active: "boolean",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+  plan_limits: {
+    primaryKey: ["id"],
+    unique: [["plan_id", "metric"]],
+    columns: {
+      id: "uuid",
+      plan_id: "uuid",
+      metric: "usage_metric",
+      monthly_limit: "bigint",
+      created_at: "timestamptz",
+    },
+  },
+  user_subscriptions: {
+    primaryKey: ["id"],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      plan_id: "uuid",
+      status: "text",
+      provider_subscription_id: "text",
+      current_period_start: "timestamptz",
+      current_period_end: "timestamptz",
+      cancel_at_period_end: "boolean",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+  usage_events: {
+    primaryKey: ["id"],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      metric: "usage_metric",
+      amount: "bigint",
+      period_start: "date",
+      source: "text",
+      metadata: "jsonb",
+      created_at: "timestamptz",
+    },
+  },
+  billing_customers: {
+    primaryKey: ["id"],
+    unique: [["user_id"], ["provider_customer_id"]],
+    columns: {
+      id: "uuid",
+      user_id: "uuid",
+      provider: "text",
+      provider_customer_id: "text",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    },
+  },
+};
+
+module.exports = {
+  enums,
+  tables,
+};

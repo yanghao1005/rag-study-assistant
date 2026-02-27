@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSubjectStore } from "@/lib/store/subjectStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileText, BrainCircuit, Plus, ArrowRight, Activity, Zap } from "lucide-react";
+import { BookOpen, BrainCircuit, Plus, ArrowRight, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardStats } from "@/components/dashboard/DashboardStats";
 
 export default function DashboardPage() {
   const { subjects, fetchSubjects, isLoading } = useSubjectStore();
@@ -15,15 +16,15 @@ export default function DashboardPage() {
     fetchSubjects();
   }, [fetchSubjects]);
 
-  // Calculate stats
-  const totalSubjects = subjects.length;
-  const totalDocuments = subjects.reduce((acc, sub) => acc + (sub.document_count || 0), 0);
+  // Calculate stats using useMemo
+  const { totalSubjects, totalDocuments } = useMemo(() => {
+    return {
+        totalSubjects: subjects.length,
+        totalDocuments: subjects.reduce((acc, sub) => acc + (sub.document_count || 0), 0)
+    };
+  }, [subjects]);
   
-  // Mock stats
-  const studySessionsThisWeek = 12;
-  const flashcardsReviewed = 145;
-
-  const recentSubjects = subjects.slice(0, 3);
+  const recentSubjects = useMemo(() => subjects.slice(0, 3), [subjects]);
 
   return (
     <div className="space-y-8">
@@ -36,64 +37,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Subjects
-            </CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalSubjects}</div>
-            <p className="text-xs text-muted-foreground">
-              {isLoading ? "Loading..." : "Active learning paths"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Knowledge Base
-            </CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalDocuments}</div>
-            <p className="text-xs text-muted-foreground">
-              Documents uploaded
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Study Sessions
-            </CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{studySessionsThisWeek}</div>
-            <p className="text-xs text-muted-foreground">
-              +19% from last week
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Cards Reviewed
-            </CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{flashcardsReviewed}</div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardStats 
+        totalSubjects={totalSubjects} 
+        totalDocuments={totalDocuments} 
+        isLoading={isLoading} 
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Recent Subjects */}

@@ -1,37 +1,40 @@
-export type Subject = {
-  id: string;
-  name: string;
-  description?: string;
-  color?: string;
-  document_count?: number;
-  created_at: string;
-  updated_at?: string;
-};
+import type { Database } from '@/types/database.types';
 
-export type DocumentType = 'pdf' | 'summary';
-export type DocumentStatus = 'processing' | 'ready' | 'error';
+type DbTables = Database['public']['Tables'];
 
-export type Document = {
-  id: string;
-  subject_id: string;
-  document_type: DocumentType;
-  filename: string;
-  file_size: number;
-  status: DocumentStatus;
-  total_pages?: number;
-  content_text?: string; // For summaries
-  created_at: string;
-  updated_at?: string;
-};
+type Override<T, U> = Omit<T, keyof U> & U;
 
-export type Chapter = {
-  id: string;
-  document_id: string;
-  name: string;
-  start_page: number;
-  end_page: number;
-  order_index: number;
-};
+export type DocumentType = Database['public']['Enums']['document_type'];
+export type DocumentStatus = Database['public']['Enums']['document_status'];
+
+export type Subject = Override<
+  DbTables['subjects']['Row'],
+  {
+    description?: string;
+    color?: string;
+    document_count?: number;
+    updated_at?: string;
+  }
+>;
+
+export type Document = Override<
+  DbTables['documents']['Row'],
+  {
+    file_size: number;
+    total_pages?: number;
+    content_text?: string;
+    updated_at?: string;
+  }
+>;
+
+export type Chapter = Override<
+  DbTables['chapters']['Row'],
+  {
+    start_page: number;
+    end_page: number;
+    order_index: number;
+  }
+>;
 
 export type SourceInfo = {
   document: string;

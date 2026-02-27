@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BookOpen, LogOut, User as UserIcon } from "lucide-react";
+import { BookOpen, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store/authStore";
+import { Sidebar } from "@/components/common/Sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
+import { useSyncStore } from "@/lib/store/syncStore";
 
 export function Navbar() {
   const { user, signOut } = useAuthStore();
+  const { isOnline, isSyncing, queuedMutations } = useSyncStore();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -23,26 +27,38 @@ export function Navbar() {
   };
 
   return (
-    <nav className="border-b bg-white">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
-          <BookOpen className="h-6 w-6" />
-          <span>SmartStudy AI</span>
-        </Link>
-        
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
-            Dashboard
-          </Link>
-          <Link href="/subjects" className="text-sm font-medium hover:text-primary transition-colors">
-            Subjects
-          </Link>
-          <Link href="/study" className="text-sm font-medium hover:text-primary transition-colors">
-            Study
-          </Link>
+    <nav className="border-b bg-background sticky top-0 z-30">
+      <div className="w-full px-4 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+             {/* Mobile Sidebar Trigger */}
+            <Sheet>
+                <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" className="md:hidden">
+                        <Menu className="h-5 w-5" />
+                    </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0 w-72">
+                    <div className="h-16 flex items-center px-6 border-b">
+                        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
+                            <BookOpen className="h-6 w-6" />
+                            <span>SmartStudy AI</span>
+                        </Link>
+                    </div>
+                    <Sidebar />
+                </SheetContent>
+            </Sheet>
+
+            <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary md:flex hidden">
+            {/* Logo is in Sidebar for desktop */}
+            </Link>
         </div>
 
         <div className="flex items-center gap-4">
+          <span className="text-xs text-muted-foreground hidden sm:inline-block">
+            {isOnline
+              ? (isSyncing ? 'Syncing...' : queuedMutations > 0 ? `Online • ${queuedMutations} queued` : 'Online')
+              : `Offline • ${queuedMutations} known pending`}
+          </span>
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

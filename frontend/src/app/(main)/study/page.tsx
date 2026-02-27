@@ -1,90 +1,137 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ScopeSelector, StudyScope } from "@/components/study/ScopeSelector";
 import { FlashcardCarousel } from "@/components/study/FlashcardCarousel";
 import { QuizInterface } from "@/components/study/QuizInterface";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { BrainCircuit, BookCopy, Sparkles, ArrowLeft } from "lucide-react";
 import { Flashcard, QuizQuestion } from "@/types/models";
-
-// Mock Data Generators
-const MOCK_FLASHCARDS: Flashcard[] = [
-  {
-    id: "1",
-    front: "What is the primary function of the Mitochondria?",
-    back: "The mitochondria is known as the powerhouse of the cell. It generates most of the chemical energy needed to power the cell's biochemical reactions.",
-    source: { document: "Cell Biology 101", page: 45, document_type: "pdf" }
-  },
-  {
-    id: "2",
-    front: "Explain the process of Osmosis.",
-    back: "Osmosis is the spontaneous net movement or diffusion of solvent molecules through a selectively permeable membrane from a region of high water potential to a region of low water potential, in the direction that tends to equalize the solute concentrations on the two sides.",
-    source: { document: "Cell Biology 101", page: 12, document_type: "pdf" }
-  },
-  {
-    id: "3",
-    front: "What is Photosynthesis?",
-    back: "Photosynthesis is the process used by plants, algae and certain bacteria to harness energy from sunlight and turn it into chemical energy.",
-    source: { document: "Plant Science", page: 88, document_type: "pdf" }
-  }
-];
-
-const MOCK_QUIZ: QuizQuestion[] = [
-  {
-    id: "1",
-    question: "Which organelle is responsible for protein synthesis?",
-    options: ["Mitochondria", "Ribosome", "Golgi Apparatus", "Nucleus"],
-    correct_answer: 1,
-    explanation: "Ribosomes are the sites in a cell in which protein synthesis takes place.",
-    source: { document: "Cell Biology 101", page: 32, document_type: "pdf" }
-  },
-  {
-    id: "2",
-    question: "What is the basic unit of life?",
-    options: ["Atom", "Molecule", "Cell", "Organism"],
-    correct_answer: 2,
-    explanation: "The cell is the smallest structural and functional unit of an organism.",
-    source: { document: "Biology Intro", page: 5, document_type: "pdf" }
-  },
-  {
-    id: "3",
-    question: "DNA is stored in which part of a eukaryote cell?",
-    options: ["Cytoplasm", "Nucleus", "Cell Membrane", "Ribosome"],
-    correct_answer: 1,
-    explanation: "In eukaryotic cells, DNA is stored inside the nucleus.",
-    source: { document: "Genetics Basics", page: 104, document_type: "pdf" }
-  }
-];
+import { generateFlashcards, generateQuiz, getGeneratedHistory } from "@/lib/api/study";
+import { useAuthStore } from "@/lib/store/authStore";
+import { toast } from "sonner";
+import { GeneratedHistoryItem } from "@/types/api";
 
 type StudyMode = 'flashcards' | 'quiz';
 
 export default function StudyPage() {
+  const searchParams = useSearchParams();
+  const defaultSubjectId = searchParams.get('subject') || undefined;
+  const user = useAuthStore((state) => state.user);
+
   const [scope, setScope] = useState<StudyScope | null>(null);
   const [mode, setMode] = useState<StudyMode>('flashcards');
   const [sessionState, setSessionState] = useState<'config' | 'loading' | 'active'>('config');
+  const [query, setQuery] = useState('');
+  const [count, setCount] = useState(8);
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [history, setHistory] = useState<GeneratedHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   
   // Data State
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
 
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!scope || !user) {
+        setHistory([]);
+        return;
+      }
+
+      const historyScope = scope.mode === 'document' ? 'document' : 'subject';
+      const scopeId = scope.mode === 'document' ? scope.documentId : scope.subjectId;
+      if (!scopeId) {
+        setHistory([]);
+        return;
+      }
+
+      try {
+        setHistoryLoading(true);
+        const response = await getGeneratedHistory({
+          user_id: user.id,
+          scope: historyScope,
+          scope_id: scopeId,
+          limit: 8,
+        });
+        setHistory(response.items ?? []);
+      } catch {
+        setHistory([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, [scope, user]);
+
   const handleStartSession = async () => {
-    if (!scope) return;
+    if (!scope || !user) return;
+    const cleanQuery = query.trim();
     
     setSessionState('loading');
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    if (mode === 'flashcards') {
-        setFlashcards(MOCK_FLASHCARDS);
-    } else {
-        setQuizQuestions(MOCK_QUIZ);
+
+    const generationScope = scope.mode === 'document' ? 'document' : 'subject';
+    const scopeId = scope.mode === 'document' ? scope.documentId : scope.subjectId;
+
+    try {
+      if (!scopeId) {
+        throw new Error('Invalid study scope');
+      }
+
+      if (mode === 'flashcards') {
+        const result = await generateFlashcards({
+          scope: generationScope,
+          scope_id: scopeId,
+          ...(cleanQuery ? { query: cleanQuery } : {}),
+          user_id: user.id,
+          count,
+          prompt_profile: 'concise',
+          front_max_chars: 90,
+          back_max_chars: 220,
+          save: true,
+          debug: true,
+        });
+        setFlashcards(result.flashcards);
+      } else {
+        const result = await generateQuiz({
+          scope: generationScope,
+          scope_id: scopeId,
+          ...(cleanQuery ? { query: cleanQuery } : {}),
+          user_id: user.id,
+          count,
+          difficulty,
+          prompt_profile: 'exam',
+          question_max_chars: 180,
+          explanation_max_chars: 260,
+          save: true,
+          debug: true,
+        });
+        setQuizQuestions(result.questions);
+      }
+
+      const historyScope = scope.mode === 'document' ? 'document' : 'subject';
+      const historyScopeId = scope.mode === 'document' ? scope.documentId : scope.subjectId;
+      if (historyScopeId) {
+        const historyResponse = await getGeneratedHistory({
+          user_id: user.id,
+          scope: historyScope,
+          scope_id: historyScopeId,
+          limit: 8,
+        });
+        setHistory(historyResponse.items ?? []);
+      }
+
+      setSessionState('active');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to generate study content');
+      setSessionState('config');
     }
-    
-    setSessionState('active');
   };
 
   const resetSession = () => {
@@ -106,7 +153,7 @@ export default function StudyPage() {
              {mode === 'flashcards' ? 'Flashcard Session' : 'Quiz Session'}
           </h1>
           <div className="text-muted-foreground text-sm">
-             Draft Mode • Mock Data
+             Live Mode • Backend v3
           </div>
         </div>
 
@@ -149,7 +196,53 @@ export default function StudyPage() {
       <div className="grid gap-8 md:grid-cols-[1fr_350px]">
         {/* Left Column: Scope Selection */}
         <div className="space-y-6">
-           <ScopeSelector onScopeChange={setScope} />
+           <ScopeSelector onScopeChange={setScope} defaultSubjectId={defaultSubjectId} />
+
+           <Card>
+             <CardHeader>
+               <CardTitle>Generation Settings</CardTitle>
+               <CardDescription>
+                 Topic is optional. Leave empty to let the system pick key concepts automatically.
+               </CardDescription>
+             </CardHeader>
+             <CardContent className="space-y-4">
+               <div className="space-y-2">
+                 <Label htmlFor="query">Topic / Query</Label>
+                 <Input
+                   id="query"
+                   placeholder="e.g. differences between supervised and unsupervised learning"
+                   value={query}
+                   onChange={(event) => setQuery(event.target.value)}
+                 />
+                 <p className="text-xs text-muted-foreground">
+                   Optional examples: "Porter five forces", "Photosynthesis stages", "TCP vs UDP".
+                 </p>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                   <Label htmlFor="count">Count</Label>
+                   <Input
+                     id="count"
+                     type="number"
+                     min={1}
+                     max={20}
+                     value={count}
+                     onChange={(event) => setCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
+                   />
+                 </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="difficulty">Quiz Difficulty</Label>
+                   <Tabs value={difficulty} onValueChange={(value) => setDifficulty(value as 'easy' | 'medium' | 'hard')}>
+                     <TabsList className="grid grid-cols-3 w-full">
+                       <TabsTrigger value="easy">Easy</TabsTrigger>
+                       <TabsTrigger value="medium">Medium</TabsTrigger>
+                       <TabsTrigger value="hard">Hard</TabsTrigger>
+                     </TabsList>
+                   </Tabs>
+                 </div>
+               </div>
+             </CardContent>
+           </Card>
            
            <Card className={!scope ? "opacity-50" : ""}>
              <CardHeader>
@@ -182,7 +275,7 @@ export default function StudyPage() {
            <Button 
              size="lg" 
              className="w-full text-lg h-12" 
-             disabled={!scope}
+             disabled={!scope || !user}
              onClick={handleStartSession}
            >
              <Sparkles className="mr-2 h-5 w-5" />
@@ -215,6 +308,32 @@ export default function StudyPage() {
                         <p className="text-muted-foreground">Get explanations for every answer to reinforce learning.</p>
                     </div>
                 </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recent Generated Content</CardTitle>
+              <CardDescription>Latest flashcards/quizzes for the selected scope.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {historyLoading ? (
+                <p className="text-muted-foreground">Loading history...</p>
+              ) : history.length === 0 ? (
+                <p className="text-muted-foreground">No generated history yet.</p>
+              ) : (
+                history.slice(0, 5).map((item) => (
+                  <div key={item.id} className="rounded-md border p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium capitalize">{item.type}</span>
+                      <span className="text-xs text-muted-foreground">{item.scope}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {item.created_at ? new Date(item.created_at).toLocaleString() : 'Stored'}
+                    </p>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
