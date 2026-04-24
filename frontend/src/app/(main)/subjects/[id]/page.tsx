@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/store/authStore";
 import { generateFlashcards, generateQuiz, getGeneratedHistory } from "@/lib/api/study";
-import { Flashcard, QuizQuestion } from "@/types/models";
+import { Document, Flashcard, QuizQuestion } from "@/types/models";
 import { GeneratedHistoryItem } from "@/types/api";
 
 type StudyMode = "flashcards" | "quiz";
@@ -28,7 +28,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
   const user = useAuthStore((state) => state.user);
   
   const { subjects, selectedSubject, fetchSubjectById } = useSubjectStore();
-  const { documents, isLoading, fetchDocuments, deleteDocument } = useDocumentStore();
+  const { documents, isLoading, fetchDocuments, deleteDocument, downloadDocument } = useDocumentStore();
 
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isEditSubjectOpen, setIsEditSubjectOpen] = useState(false);
@@ -94,6 +94,15 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
 
   const handleDeleteDocument = (docId: string) => {
     setDocToDelete(docId);
+  };
+
+  const handleDownloadDocument = async (doc: Document) => {
+    try {
+      await downloadDocument(doc);
+      toast.success("Document downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to download document");
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -271,7 +280,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
 
             <Button onClick={handleGenerate} disabled={!user || isGenerating} className="w-full md:w-auto h-9">
               <Sparkles className="h-4 w-4 mr-2" />
-              {isGenerating ? "Generating..." : "Generate in this page"}
+                {isGenerating ? "Generating…" : "Generate in this page"}
             </Button>
 
             <div className="flex flex-wrap gap-2">
@@ -324,7 +333,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
             ) : history.length === 0 ? (
               <p className="text-sm text-muted-foreground">No generated content yet for this subject.</p>
             ) : (
-              <div className="space-y-1.5 max-h-[320px] overflow-auto pr-1">
+              <div className="space-y-1.5 max-h-80 overflow-auto pr-1">
                 {history.slice(0, 8).map((item) => {
                   const payload = item.content_json as {
                     flashcards?: unknown[];
@@ -376,7 +385,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
                   (selectedPayload.flashcards ?? []).length === 0 ? (
                     <p className="text-sm text-muted-foreground">No flashcards in this entry.</p>
                   ) : (
-                    <div className="space-y-1.5 max-h-[300px] overflow-auto pr-1">
+                    <div className="space-y-1.5 max-h-75 overflow-auto pr-1">
                       {(selectedPayload.flashcards ?? []).slice(0, 8).map((card, index) => (
                         <div key={`${selectedHistoryItem.id}-card-${index}`} className="rounded-md border p-2">
                           <p className="text-sm font-medium">{card.front || `Card ${index + 1}`}</p>
@@ -388,7 +397,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
                 ) : (selectedPayload.questions ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">No quiz questions in this entry.</p>
                 ) : (
-                  <div className="space-y-1.5 max-h-[300px] overflow-auto pr-1">
+                  <div className="space-y-1.5 max-h-75 overflow-auto pr-1">
                     {(selectedPayload.questions ?? []).slice(0, 6).map((question, index) => (
                       <div key={`${selectedHistoryItem.id}-q-${index}`} className="rounded-md border p-2 space-y-1">
                         <p className="text-sm font-medium">{question.question || `Question ${index + 1}`}</p>
@@ -428,6 +437,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
              documents={documents} 
              isLoading={isLoading}
              onView={(docId) => console.log("View", docId)}
+             onDownload={handleDownloadDocument}
              onDelete={handleDeleteDocument}
            />
          </TabsContent>
@@ -437,6 +447,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
              documents={pdfs} 
              isLoading={isLoading}
              onView={(docId) => console.log("View", docId)}
+             onDownload={handleDownloadDocument}
              onDelete={handleDeleteDocument}
            />
          </TabsContent>
@@ -446,6 +457,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
              documents={summaries} 
              isLoading={isLoading}
              onView={(docId) => console.log("View", docId)}
+             onDownload={handleDownloadDocument}
              onDelete={handleDeleteDocument}
            />
          </TabsContent>

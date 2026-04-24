@@ -7,10 +7,11 @@ interface DocumentListProps {
   documents: Document[];
   isLoading: boolean;
   onView: (id: string) => void;
+  onDownload: (document: Document) => void;
   onDelete: (id: string) => void;
 }
 
-export function DocumentList({ documents, isLoading, onView, onDelete }: DocumentListProps) {
+export function DocumentList({ documents, isLoading, onView, onDownload, onDelete }: DocumentListProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -42,6 +43,7 @@ export function DocumentList({ documents, isLoading, onView, onDelete }: Documen
           key={doc.id} 
           document={doc} 
           onView={onView} 
+          onDownload={onDownload}
           onDelete={onDelete} 
         />
       ))}

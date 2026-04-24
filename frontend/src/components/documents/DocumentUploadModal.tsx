@@ -96,7 +96,7 @@ export function DocumentUploadModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle>Add Document</DialogTitle>
           <DialogDescription>
@@ -121,7 +121,7 @@ export function DocumentUploadModal({
                 onClick={handlePdfUpload} 
                 disabled={!pdfFile || isUploading}
               >
-                {isUploading ? "Uploading..." : "Upload PDF"}
+                {isUploading ? "Uploading…" : "Upload PDF"}
               </Button>
             </div>
           </TabsContent>
@@ -152,7 +152,7 @@ export function DocumentUploadModal({
                       <FormControl>
                         <Textarea 
                           placeholder="Write your summary here..." 
-                          className="min-h-[200px]"
+                          className="min-h-50"
                           {...field} 
                         />
                       </FormControl>
@@ -166,7 +166,7 @@ export function DocumentUploadModal({
 
                 <div className="flex justify-end">
                   <Button type="submit" disabled={isUploading}>
-                    {isUploading ? "Saving..." : "Save Summary"}
+                    {isUploading ? "Saving…" : "Save Summary"}
                   </Button>
                 </div>
               </form>

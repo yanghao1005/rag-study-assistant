@@ -9,6 +9,7 @@ import { SourceCitation } from "./SourceCitation";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from "next/link";
 
 interface QuizInterfaceProps {
   questions: QuizQuestion[];
@@ -157,7 +158,7 @@ export function QuizInterface({ questions, onFinish, onRetake, persistenceKey }:
              Retake Quiz
            </Button>
            <Button asChild size="lg">
-             <a href="/dashboard">Back to Dashboard</a>
+             <Link href="/dashboard">Back to Dashboard</Link>
            </Button>
         </div>
         
@@ -199,7 +200,7 @@ export function QuizInterface({ questions, onFinish, onRetake, persistenceKey }:
               const isCorrectAnswer = index === currentQuestion.correct_answer;
               
               // Styling logic based on answer state
-              let itemClass = "flex items-center space-x-3 space-y-0 rounded-lg border p-4 transition-all cursor-pointer relative overflow-hidden";
+              let itemClass = "flex items-center space-x-3 space-y-0 rounded-lg border p-4 transition-colors cursor-pointer relative overflow-hidden";
               
               if (isAnswered) {
                 if (isCorrectAnswer) {

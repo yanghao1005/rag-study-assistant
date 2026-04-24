@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, RotateCw, RefreshCw, CheckCircle2 } from "lu
 import { motion, AnimatePresence } from "framer-motion";
 import { SourceCitation } from "./SourceCitation";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface FlashcardCarouselProps {
   flashcards: Flashcard[];
@@ -105,7 +106,7 @@ export function FlashcardCarousel({ flashcards, onFinish }: FlashcardCarouselPro
              Review Again
            </Button>
            <Button asChild>
-             <a href="/dashboard">Back to Dashboard</a>
+             <Link href="/dashboard">Back to Dashboard</Link>
            </Button>
         </div>
       </div>
@@ -126,7 +127,7 @@ export function FlashcardCarousel({ flashcards, onFinish }: FlashcardCarouselPro
       </div>
 
       {/* Card Container */}
-      <div className="relative w-full aspect-[3/2] perspective-1000 group">
+      <div className="relative w-full aspect-3/2 perspective-1000 group">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={currentIndex}
@@ -199,7 +200,7 @@ export function FlashcardCarousel({ flashcards, onFinish }: FlashcardCarouselPro
 
         <Button 
           variant="default" 
-          className="h-14 px-10 rounded-full text-lg shadow-md hover:shadow-lg transition-all"
+          className="h-14 px-10 rounded-full text-lg shadow-md hover:shadow-lg transition-shadow"
           onClick={handleFlip}
         >
           {isFlipped ? "Show Question" : "Show Answer"}

@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { FileText, StickyNote, Trash2, Eye } from 'lucide-react';
+import { FileText, StickyNote, Trash2, Eye, Download } from 'lucide-react';
 import { Document } from '@/types/models';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -8,10 +8,11 @@ import { DocumentStatusBadge } from './DocumentStatusBadge';
 interface DocumentCardProps {
   document: Document;
   onView: (id: string) => void;
+  onDownload: (document: Document) => void;
   onDelete: (id: string) => void;
 }
 
-export function DocumentCard({ document, onView, onDelete }: DocumentCardProps) {
+export function DocumentCard({ document, onView, onDownload, onDelete }: DocumentCardProps) {
   const isPdf = document.document_type === 'pdf';
   const Icon = isPdf ? FileText : StickyNote;
 
@@ -55,6 +56,10 @@ export function DocumentCard({ document, onView, onDelete }: DocumentCardProps) 
         <Button variant="ghost" size="sm" onClick={() => onView(document.id)}>
           <Eye className="h-4 w-4 mr-2" />
           View
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => onDownload(document)}>
+          <Download className="h-4 w-4 mr-2" />
+          Download
         </Button>
         <Button 
           variant="ghost" 

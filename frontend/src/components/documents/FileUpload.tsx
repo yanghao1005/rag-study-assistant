@@ -107,7 +107,7 @@ export function FileUpload({
       {isUploading && (
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Uploading...</span>
+            <span>Uploading…</span>
             <span>{progress}%</span>
           </div>
           <Progress value={progress} />

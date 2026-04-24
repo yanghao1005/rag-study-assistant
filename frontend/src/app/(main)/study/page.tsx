@@ -143,7 +143,7 @@ export default function StudyPage() {
   if (sessionState === 'active') {
     return (
       <div className="container max-w-5xl py-8 space-y-6">
-        <Button variant="ghost" onClick={resetSession} className="gap-2 pl-0 hover:pl-2 transition-all">
+        <Button variant="ghost" onClick={resetSession} className="gap-2 pl-0 hover:pl-2 transition-[padding]">
           <ArrowLeft className="h-4 w-4" />
           Back to Setup
         </Button>
