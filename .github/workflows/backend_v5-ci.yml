@@ -1,0 +1,54 @@
+name: backend_v5_ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend_v5/**
+      - .github/workflows/backend_v5-ci.yml
+  pull_request:
+    paths:
+      - backend_v5/**
+      - .github/workflows/backend_v5-ci.yml
+
+jobs:
+  test-and-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend_v5/requirements.txt
+
+      - name: Run backend_v5 tests
+        env:
+          PYTHONPATH: backend_v5
+        run: python -m pytest backend_v5/tests -v
+
+      - name: Run benchmark gates
+        env:
+          PYTHONPATH: backend_v5
+        run: |
+          python backend_v5/tools/ci_benchmark_gate.py \
+            --output-dir backend_v5/benchmark_reports \
+            --benchmark-profile ci \
+            --retrieval-iterations 12 \
+            --generation-iterations 12 \
+            --chat-iterations 12
+
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend_v5_benchmark_reports
+          path: backend_v5/benchmark_reports/*.json

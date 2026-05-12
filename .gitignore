@@ -37,4 +37,6 @@ env/
 
 # Custom
 uploads/
+debug_artifacts/
+benchmark_reports/
 

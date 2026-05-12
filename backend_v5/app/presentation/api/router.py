@@ -1,0 +1,16 @@
+from fastapi import APIRouter
+
+from app.presentation.api.routes.chat import router as chat_router
+from app.presentation.api.routes.documents import router as documents_router
+from app.presentation.api.routes.generation import router as generation_router
+from app.presentation.api.routes.health import router as health_router
+from app.presentation.api.routes.jobs import router as jobs_router
+from app.presentation.api.routes.pipeline import router as pipeline_router
+
+api_router = APIRouter()
+api_router.include_router(health_router)
+api_router.include_router(documents_router)
+api_router.include_router(pipeline_router)
+api_router.include_router(jobs_router)
+api_router.include_router(generation_router)
+api_router.include_router(chat_router)
