@@ -10,6 +10,7 @@ ScopeLiteral = Literal["subject", "document", "chapter", "summary"]
 class GenerateFlashcardsRequest(BaseModel):
     scope: ScopeLiteral
     scope_id: str = Field(min_length=1)
+    source_document_ids: list[str] = Field(default_factory=list)
     query: str | None = None
     count: int = Field(default=5, ge=1, le=25)
     user_id: str | None = None
@@ -47,11 +48,13 @@ class GenerateFlashcardsResponse(BaseModel):
     flashcards: list[FlashcardItem]
     sources: list[SourceCitation] = []
     diagnostics: RetrievalDiagnostics | None = None
+    generated_id: str | None = None
 
 
 class GenerateQuizRequest(BaseModel):
     scope: ScopeLiteral
     scope_id: str = Field(min_length=1)
+    source_document_ids: list[str] = Field(default_factory=list)
     query: str | None = None
     count: int = Field(default=5, ge=1, le=20)
     user_id: str | None = None
@@ -74,6 +77,7 @@ class QuizItem(BaseModel):
 class GenerateQuizResponse(BaseModel):
     questions: list[QuizItem]
     diagnostics: RetrievalDiagnostics | None = None
+    generated_id: str | None = None
 
 
 class GenerateSummaryRequest(BaseModel):
@@ -102,3 +106,16 @@ class GeneratedHistoryItem(BaseModel):
 
 class GeneratedHistoryResponse(BaseModel):
     items: list[GeneratedHistoryItem]
+
+
+class GeneratedGroupResponse(BaseModel):
+    item: GeneratedHistoryItem
+
+
+class UpdateGeneratedGroupRequest(BaseModel):
+    content_json: dict
+
+
+class DeleteGeneratedGroupResponse(BaseModel):
+    ok: bool
+    id: str

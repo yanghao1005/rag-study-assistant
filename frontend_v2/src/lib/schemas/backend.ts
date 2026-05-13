@@ -10,6 +10,29 @@ export const documentUploadResponseSchema = z.object({
   job_id: z.string().nullable().optional(),
 });
 
+export const documentRecordSchema = z.object({
+  id: z.string(),
+  subject_id: z.string(),
+  document_type: z.string(),
+  filename: z.string(),
+  status: z.string(),
+  error_message: z.string().nullable().optional(),
+  total_pages: z.number().default(0),
+  file_size: z.number().default(0),
+  file_path: z.string().default(""),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+});
+
+export const documentListResponseSchema = z.object({
+  items: z.array(documentRecordSchema),
+});
+
+export const deleteDocumentResponseSchema = z.object({
+  ok: z.boolean(),
+  document_id: z.string(),
+});
+
 export const stageRunSchema = z.object({
   id: z.string().optional(),
   stage: z.string(),
@@ -59,6 +82,13 @@ export const generateFlashcardsResponseSchema = z.object({
   flashcards: z.array(flashcardSchema),
   sources: z.array(sourceSchema).default([]),
   diagnostics: retrievalDiagnosticsSchema.nullable().optional(),
+  generated_id: z.string().nullable().optional(),
+  meta: z
+    .object({
+      query: z.string().optional(),
+      source_document_ids: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export const quizItemSchema = z.object({
@@ -72,6 +102,14 @@ export const quizItemSchema = z.object({
 export const generateQuizResponseSchema = z.object({
   questions: z.array(quizItemSchema),
   diagnostics: retrievalDiagnosticsSchema.nullable().optional(),
+  generated_id: z.string().nullable().optional(),
+  meta: z
+    .object({
+      query: z.string().optional(),
+      source_document_ids: z.array(z.string()).optional(),
+      difficulty: z.string().nullable().optional(),
+    })
+    .optional(),
 });
 
 export const chatAskResponseSchema = z.object({
@@ -96,10 +134,25 @@ export const generatedHistoryResponseSchema = z.object({
   items: z.array(generatedHistoryItemSchema),
 });
 
+export const generatedGroupResponseSchema = z.object({
+  item: generatedHistoryItemSchema,
+});
+
+export const deleteGeneratedGroupResponseSchema = z.object({
+  ok: z.boolean(),
+  id: z.string(),
+});
+
 export type ScopeLiteral = z.infer<typeof scopeLiteralSchema>;
 export type DocumentUploadResponse = z.infer<typeof documentUploadResponseSchema>;
+export type DocumentRecord = z.infer<typeof documentRecordSchema>;
+export type DocumentListResponse = z.infer<typeof documentListResponseSchema>;
+export type DeleteDocumentResponse = z.infer<typeof deleteDocumentResponseSchema>;
 export type JobResponse = z.infer<typeof jobSchema>;
 export type GenerateFlashcardsResponse = z.infer<typeof generateFlashcardsResponseSchema>;
 export type GenerateQuizResponse = z.infer<typeof generateQuizResponseSchema>;
 export type ChatAskResponse = z.infer<typeof chatAskResponseSchema>;
 export type GeneratedHistoryResponse = z.infer<typeof generatedHistoryResponseSchema>;
+export type GeneratedHistoryItem = z.infer<typeof generatedHistoryItemSchema>;
+export type GeneratedGroupResponse = z.infer<typeof generatedGroupResponseSchema>;
+export type DeleteGeneratedGroupResponse = z.infer<typeof deleteGeneratedGroupResponseSchema>;

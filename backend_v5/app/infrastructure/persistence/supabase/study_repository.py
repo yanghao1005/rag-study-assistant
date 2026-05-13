@@ -65,6 +65,43 @@ class SupabaseStudyRepository:
     def update_document(self, *, user_id: str, document_id: str, updates: dict[str, Any]) -> None:
         self._db.table("documents").update(updates).eq("id", document_id).eq("user_id", user_id).execute()
 
+    def list_documents(self, *, user_id: str, subject_id: str | None = None) -> list[dict[str, Any]]:
+        select_base = "id,user_id,subject_id,document_type,filename,status,error_message,total_pages,file_size,created_at,updated_at"
+
+        last_missing_column_error: APIError | None = None
+        for path_column in self._path_column_candidates():
+            try:
+                query = self._db.table("documents").select(f"{select_base},{path_column}").eq("user_id", user_id)
+                if subject_id:
+                    query = query.eq("subject_id", subject_id)
+                result = query.order("created_at", desc=True).execute()
+                rows = result.data or []
+                normalized = []
+                for row in rows:
+                    row["storage_path"] = row.get("storage_path") or row.get("file_path") or ""
+                    normalized.append(row)
+                self._document_path_column = path_column
+                return normalized
+            except APIError as exc:
+                if self._is_missing_documents_column(exc, path_column):
+                    last_missing_column_error = exc
+                    continue
+                raise
+
+        if last_missing_column_error is not None:
+            raise last_missing_column_error
+        return []
+
+    def delete_document(self, *, user_id: str, document_id: str) -> bool:
+        existing = self.get_document(user_id=user_id, document_id=document_id)
+        if not existing:
+            return False
+
+        self._db.table("document_chunks").delete().eq("user_id", user_id).eq("document_id", document_id).execute()
+        self._db.table("generated_content").delete().eq("user_id", user_id).eq("scope", "document").eq("scope_id", document_id).execute()
+        self._db.table("documents").delete().eq("id", document_id).eq("user_id", user_id).execute()
+        return True
+
     def get_document(self, *, user_id: str, document_id: str) -> dict[str, Any] | None:
         result = (
             self._db.table("documents")
@@ -181,6 +218,36 @@ class SupabaseStudyRepository:
             .execute()
         )
         return result.data or []
+
+    def get_generated(self, *, user_id: str, generated_id: str) -> dict[str, Any] | None:
+        result = (
+            self._db.table("generated_content")
+            .select("id,user_id,scope,scope_id,content_type,content_json,created_at")
+            .eq("id", generated_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+
+    def update_generated(self, *, user_id: str, generated_id: str, content_json: dict[str, Any]) -> dict[str, Any] | None:
+        result = (
+            self._db.table("generated_content")
+            .update({"content_json": content_json})
+            .eq("id", generated_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+
+    def delete_generated(self, *, user_id: str, generated_id: str) -> bool:
+        existing = self.get_generated(user_id=user_id, generated_id=generated_id)
+        if not existing:
+            return False
+        self._db.table("generated_content").delete().eq("id", generated_id).eq("user_id", user_id).execute()
+        return True
 
     def create_job(self, *, user_id: str, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         result = self._db.table("jobs").insert({"user_id": user_id, "job_type": job_type, "payload": payload}).execute()

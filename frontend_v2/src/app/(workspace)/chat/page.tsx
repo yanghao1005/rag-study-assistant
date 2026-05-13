@@ -13,11 +13,13 @@ import { useAskChat } from "@/features/chat/use-chat";
 
 export default function ChatPage() {
   const { token, documentId } = useSessionStore();
+  const normalizedDocumentId = (documentId || "").trim();
+  const hasDocumentContext = Boolean(normalizedDocumentId) && normalizedDocumentId.toLowerCase() !== "undefined" && normalizedDocumentId.toLowerCase() !== "null";
   const [question, setQuestion] = useState("What is this document mainly about?");
   const chatMutation = useAskChat();
 
   const runAsk = async () => {
-    if (!token || !documentId) {
+    if (!token || !hasDocumentContext) {
       toast.error("Token and document ID are required.");
       return;
     }
@@ -25,7 +27,7 @@ export default function ChatPage() {
       await chatMutation.mutateAsync({
         token,
         scope: "document",
-        scopeId: documentId,
+        scopeId: normalizedDocumentId,
         question,
       });
     } catch (error) {
@@ -35,8 +37,8 @@ export default function ChatPage() {
 
   return (
     <SubjectRequired>
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-      <Card>
+      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.1fr_1fr]">
+      <Card className="border-[var(--sl-muted)] bg-white shadow-sl-sm">
         <CardHeader>
           <CardTitle>Grounded Chat</CardTitle>
           <CardDescription>Ask document-scoped questions and inspect confidence/citations.</CardDescription>
@@ -46,13 +48,13 @@ export default function ChatPage() {
             <Label htmlFor="question">Question</Label>
             <Textarea id="question" value={question} onChange={(event) => setQuestion(event.target.value)} />
           </div>
-          <Button onClick={runAsk} disabled={chatMutation.isPending}>
+          <Button onClick={runAsk} disabled={chatMutation.isPending} className="rounded-sl-standard bg-[var(--sl-lavender)] text-white hover:bg-[rgba(167,139,250,0.9)]">
             {chatMutation.isPending ? "Asking..." : "Ask"}
           </Button>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-[var(--sl-muted)] bg-white shadow-sl-sm">
         <CardHeader>
           <CardTitle>Response</CardTitle>
           <CardDescription>Answer, confidence, and citations from backend_v5.</CardDescription>

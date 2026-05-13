@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftCircle, ChevronDown, LogOut, UserCircle2 } from "lucide-react";
+import { ArrowLeftCircle, ChevronDown, LogOut } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSessionStore } from "@/features/auth/session-store";
 import { useSubjects } from "@/features/subjects/use-subjects";
@@ -101,48 +100,44 @@ export function TopToolbar() {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="flex items-center justify-between gap-4 px-4 py-2.5 lg:px-6">
-        <div className="flex min-w-0 items-center gap-3">
+    <header className="sticky top-0 z-20 border-b border-[var(--sl-muted)] bg-white/85 backdrop-blur-md">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 lg:px-6">
+        <div className="flex min-w-0 items-center gap-4">
           {subjectId && !pathname.startsWith("/dashboard") ? (
             <Button
               type="button"
               size="sm"
               onClick={() => router.push("/dashboard")}
-              className="h-8 gap-1.5 bg-primary font-semibold text-primary-foreground shadow-sm"
+              className="h-8 gap-1.5 rounded-sl-standard bg-[var(--sl-lavender)] text-white hover:bg-[rgba(167,139,250,0.9)]"
             >
               <ArrowLeftCircle className="size-4" />
               Change Subject
             </Button>
           ) : null}
-          <div className="hidden size-8 items-center justify-center rounded-lg bg-primary/15 text-primary sm:flex">
-            <UserCircle2 className="size-4" />
-          </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{pageTitle}</p>
-            <p className="truncate text-xs text-muted-foreground">{pageSubtitle}</p>
+            <p className="truncate text-lg font-semibold text-[var(--sl-text-primary)]">{pageTitle}</p>
+            <p className="truncate text-xs text-[var(--sl-text-secondary)]">{pageSubtitle}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant={token ? "success" : "warning"}>{token ? "Authenticated" : "Not signed in"}</Badge>
           <div ref={menuRef} className="relative">
             <button
               type="button"
-              className="flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5 text-left text-xs shadow-xs transition-colors hover:bg-accent/35"
+              className="flex items-center gap-2 rounded-sl-standard border border-[var(--sl-muted)] bg-white px-2 py-1.5 text-left text-xs transition-colors hover:bg-[var(--sl-muted)]"
               onClick={() => setMenuOpen((value) => !value)}
             >
-              <div className="grid size-7 place-items-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">{userInitials}</div>
+              <div className="grid size-7 place-items-center rounded-full bg-[rgba(167,139,250,0.18)] text-[11px] font-semibold text-[var(--sl-lavender)]">{userInitials}</div>
               <div className="hidden min-w-0 sm:block">
-                <p className="max-w-40 truncate font-medium">{userEmail || "Authenticated session"}</p>
+                <p className="max-w-40 truncate font-medium text-[var(--sl-text-primary)]">{userEmail || "Authenticated session"}</p>
               </div>
-              <ChevronDown className="size-3.5 text-muted-foreground" />
+              <ChevronDown className="size-3.5 text-[var(--sl-text-secondary)]" />
             </button>
 
             {menuOpen ? (
-              <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-56 rounded-xl border bg-popover p-2 shadow-lg">
+              <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-56 rounded-xl border border-[var(--sl-muted)] bg-white p-2 shadow-sl-sm">
                 <div className="mb-1 rounded-lg px-2 py-1.5">
-                  <p className="truncate text-xs font-medium">{userEmail || "Authenticated session"}</p>
+                  <p className="truncate text-xs font-medium text-[var(--sl-text-primary)]">{userEmail || "Authenticated session"}</p>
                 </div>
                 <Button type="button" size="sm" variant="ghost" className="w-full justify-start" onClick={handleReset}>
                   <LogOut className="size-3.5" />

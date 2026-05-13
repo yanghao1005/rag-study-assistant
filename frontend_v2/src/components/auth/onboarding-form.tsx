@@ -96,23 +96,23 @@ export function OnboardingForm() {
   };
 
   return (
-    <main className="mx-auto grid min-h-screen w-full max-w-5xl place-items-center px-4 py-10">
-      <Card className="w-full max-w-2xl border-border/70 bg-card/95">
+    <main className="mx-auto grid min-h-screen w-full max-w-5xl place-items-center bg-[var(--sl-base)] px-4 py-10">
+      <Card className="w-full max-w-2xl border-[var(--sl-muted)] bg-white shadow-sl-sm">
         <CardHeader>
           <Badge className="w-fit">Supabase Authentication</Badge>
-          <CardTitle className="text-2xl">Sign in to your study workspace</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl text-[var(--sl-text-primary)]">Sign in to your study workspace</CardTitle>
+          <CardDescription className="text-[var(--sl-text-secondary)]">
             The app now uses Supabase Auth to obtain bearer tokens automatically. No manual token pasting is needed.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5">
           {isSignedIn ? (
-            <div className="grid gap-3 rounded-lg border bg-muted/30 p-4">
+            <div className="grid gap-3 rounded-sl-soft border border-[var(--sl-muted)] bg-[var(--sl-base)] p-4">
               <p className="text-sm">
                 Signed in as <span className="font-medium">{userEmail || "authenticated user"}</span>
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleContinue}>Continue to workspace</Button>
+                <Button onClick={handleContinue} className="rounded-sl-standard bg-[var(--sl-lavender)] text-white hover:bg-[rgba(167,139,250,0.9)]">Continue to workspace</Button>
               </div>
             </div>
           ) : null}
@@ -135,10 +135,10 @@ export function OnboardingForm() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={handleSignIn} disabled={busy !== null}>
+            <Button type="button" onClick={handleSignIn} disabled={busy !== null} className="rounded-sl-standard bg-[var(--sl-lavender)] text-white hover:bg-[rgba(167,139,250,0.9)]">
               {busy === "signin" ? "Signing in..." : "Sign In"}
             </Button>
-            <Button type="button" variant="secondary" onClick={handleSignUp} disabled={busy !== null}>
+            <Button type="button" variant="secondary" onClick={handleSignUp} disabled={busy !== null} className="rounded-sl-standard">
               {busy === "signup" ? "Creating account..." : "Sign Up"}
             </Button>
             <p className="self-center text-xs text-muted-foreground">Next route: {nextPath}</p>

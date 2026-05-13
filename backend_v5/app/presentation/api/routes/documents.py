@@ -3,16 +3,32 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from app.container import get_documents_use_case, get_repository
 from app.core.auth import AuthUser
 from app.core.errors import AppError
 from app.presentation.api.deps.auth import get_current_user
-from app.presentation.api.schemas.documents import CreateSummaryRequest, DocumentUploadResponse
+from app.presentation.api.schemas.documents import (
+    CreateSummaryRequest,
+    DeleteDocumentResponse,
+    DocumentListResponse,
+    DocumentRecord,
+    DocumentUploadResponse,
+    UpdateDocumentRequest,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+@router.get("", response_model=DocumentListResponse)
+def list_documents(
+    subject_id: str | None = Query(default=None),
+    user: AuthUser = Depends(get_current_user),
+) -> DocumentListResponse:
+    items = get_documents_use_case().list_documents(user_id=user.user_id, subject_id=subject_id)
+    return DocumentListResponse(items=[DocumentRecord(**item) for item in items])
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
@@ -55,6 +71,29 @@ def create_summary_document(
         content=request.content,
     )
     return DocumentUploadResponse(**result)
+
+
+@router.patch("/{document_id}", response_model=DocumentRecord)
+def rename_document(
+    document_id: str,
+    request: UpdateDocumentRequest,
+    user: AuthUser = Depends(get_current_user),
+) -> DocumentRecord:
+    updated = get_documents_use_case().rename_document(
+        user_id=user.user_id,
+        document_id=document_id,
+        filename=request.filename,
+    )
+    return DocumentRecord(**updated)
+
+
+@router.delete("/{document_id}", response_model=DeleteDocumentResponse)
+def delete_document(
+    document_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> DeleteDocumentResponse:
+    get_documents_use_case().delete_document(user_id=user.user_id, document_id=document_id)
+    return DeleteDocumentResponse(document_id=document_id)
 
 
 @router.get("/{document_id}/download")

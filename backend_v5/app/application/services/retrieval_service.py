@@ -25,8 +25,21 @@ class RetrievalService:
         else:
             self._embedding_client = None
 
-    def retrieve(self, *, user_id: str, scope: str, scope_id: str, query: str, limit: int) -> list[dict[str, Any]]:
+    def retrieve(
+        self,
+        *,
+        user_id: str,
+        scope: str,
+        scope_id: str,
+        query: str,
+        limit: int,
+        source_document_ids: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         rows = self._repository.list_chunks_for_scope(user_id=user_id, scope=scope, scope_id=scope_id, limit=max(limit * 3, 10))
+        if source_document_ids:
+            allowed_ids = {doc_id.strip() for doc_id in source_document_ids if doc_id and doc_id.strip()}
+            if allowed_ids:
+                rows = [row for row in rows if str(row.get("document_id") or "") in allowed_ids]
         query_embedding = self._embed_query(query)
         query_terms = self._tokenize(query)
         query_term_set = set(query_terms)
@@ -74,6 +87,7 @@ class RetrievalService:
 
             scored.append(
                 {
+                    "document_id": row.get("document_id"),
                     "content": content,
                     "score": score,
                     "lexical_score": lexical_score,

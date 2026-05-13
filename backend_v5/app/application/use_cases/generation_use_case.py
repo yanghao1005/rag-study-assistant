@@ -9,9 +9,11 @@ from app.core.errors import AppError
 from app.domain.ports.repositories import StudyRepository
 from openai import OpenAI
 from app.presentation.api.schemas.generation import (
+    DeleteGeneratedGroupResponse,
     FlashcardItem,
     GenerateFlashcardsRequest,
     GenerateFlashcardsResponse,
+    GeneratedGroupResponse,
     GeneratedHistoryItem,
     GeneratedHistoryResponse,
     GenerateQuizRequest,
@@ -21,6 +23,7 @@ from app.presentation.api.schemas.generation import (
     QuizItem,
     RetrievalDiagnostics,
     SourceCitation,
+    UpdateGeneratedGroupRequest,
 )
 
 
@@ -56,6 +59,7 @@ class GenerationUseCase:
             scope_id=request.scope_id,
             query=query,
             limit=max(request.count * 2, 8),
+            source_document_ids=request.source_document_ids,
         )
         if not candidates:
             raise AppError(
@@ -81,13 +85,19 @@ class GenerationUseCase:
         )
 
         if request.save:
-            self._repository.save_generated(
+            payload = response.model_dump(mode="json")
+            payload["meta"] = {
+                "query": query,
+                "source_document_ids": request.source_document_ids,
+            }
+            saved = self._repository.save_generated(
                 user_id=user_id,
                 scope=request.scope,
                 scope_id=request.scope_id,
                 content_type="flashcard",
-                content_json=response.model_dump(mode="json"),
+                content_json=payload,
             )
+            response.generated_id = str(saved.get("id") or "") or None
 
         return response
 
@@ -100,6 +110,7 @@ class GenerationUseCase:
             scope_id=request.scope_id,
             query=query,
             limit=max(request.count * 2, 8),
+            source_document_ids=request.source_document_ids,
         )
         if not candidates:
             raise AppError(
@@ -121,13 +132,20 @@ class GenerationUseCase:
         response = GenerateQuizResponse(questions=questions[: request.count], diagnostics=diagnostics)
 
         if request.save:
-            self._repository.save_generated(
+            payload = response.model_dump(mode="json")
+            payload["meta"] = {
+                "query": query,
+                "source_document_ids": request.source_document_ids,
+                "difficulty": request.difficulty,
+            }
+            saved = self._repository.save_generated(
                 user_id=user_id,
                 scope=request.scope,
                 scope_id=request.scope_id,
                 content_type="quiz",
-                content_json=response.model_dump(mode="json"),
+                content_json=payload,
             )
+            response.generated_id = str(saved.get("id") or "") or None
 
         return response
 
@@ -352,25 +370,46 @@ class GenerationUseCase:
 
     def get_history(self, *, user_id: str, scope: str, scope_id: str, limit: int) -> GeneratedHistoryResponse:
         rows = self._repository.list_generated(user_id=user_id, scope=scope, scope_id=scope_id, limit=limit)
-        items: list[GeneratedHistoryItem] = []
-        for row in rows:
-            item_scope = str(row.get("scope") or scope)
-            item_scope_id = str(row.get("scope_id") or scope_id)
-            items.append(
-                GeneratedHistoryItem(
-                    id=str(row.get("id")),
-                    user_id=str(row.get("user_id")),
-                    scope=item_scope,
-                    type=str(row.get("content_type") or row.get("type") or "unknown"),
-                    created_at=row.get("created_at"),
-                    subject_id=item_scope_id if item_scope == "subject" else None,
-                    document_id=item_scope_id if item_scope in {"document", "summary"} else None,
-                    chapter_id=item_scope_id if item_scope == "chapter" else None,
-                    content_json=row.get("content_json") or {},
-                )
-            )
+        items = [self._row_to_history_item(row, default_scope=scope, default_scope_id=scope_id) for row in rows]
 
         return GeneratedHistoryResponse(items=items)
+
+    def get_generated_group(self, *, user_id: str, generated_id: str) -> GeneratedGroupResponse:
+        row = self._repository.get_generated(user_id=user_id, generated_id=generated_id)
+        if not row:
+            raise AppError(error="generated_group_not_found", message="Generated group was not found.", status_code=404)
+        item_scope = str(row.get("scope") or "subject")
+        item_scope_id = str(row.get("scope_id") or "")
+        return GeneratedGroupResponse(item=self._row_to_history_item(row, default_scope=item_scope, default_scope_id=item_scope_id))
+
+    def update_generated_group(self, *, user_id: str, generated_id: str, request: UpdateGeneratedGroupRequest) -> GeneratedGroupResponse:
+        row = self._repository.update_generated(user_id=user_id, generated_id=generated_id, content_json=request.content_json)
+        if not row:
+            raise AppError(error="generated_group_not_found", message="Generated group was not found.", status_code=404)
+        item_scope = str(row.get("scope") or "subject")
+        item_scope_id = str(row.get("scope_id") or "")
+        return GeneratedGroupResponse(item=self._row_to_history_item(row, default_scope=item_scope, default_scope_id=item_scope_id))
+
+    def delete_generated_group(self, *, user_id: str, generated_id: str) -> DeleteGeneratedGroupResponse:
+        ok = self._repository.delete_generated(user_id=user_id, generated_id=generated_id)
+        if not ok:
+            raise AppError(error="generated_group_not_found", message="Generated group was not found.", status_code=404)
+        return DeleteGeneratedGroupResponse(ok=True, id=generated_id)
+
+    def _row_to_history_item(self, row: dict[str, Any], *, default_scope: str, default_scope_id: str) -> GeneratedHistoryItem:
+        item_scope = str(row.get("scope") or default_scope)
+        item_scope_id = str(row.get("scope_id") or default_scope_id)
+        return GeneratedHistoryItem(
+            id=str(row.get("id")),
+            user_id=str(row.get("user_id")),
+            scope=item_scope,
+            type=str(row.get("content_type") or row.get("type") or "unknown"),
+            created_at=row.get("created_at"),
+            subject_id=item_scope_id if item_scope == "subject" else None,
+            document_id=item_scope_id if item_scope in {"document", "summary"} else None,
+            chapter_id=item_scope_id if item_scope == "chapter" else None,
+            content_json=row.get("content_json") or {},
+        )
 
     def _sources_from_candidates(self, candidates: list[dict[str, Any]]) -> list[SourceCitation]:
         return [

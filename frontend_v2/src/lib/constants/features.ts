@@ -3,6 +3,8 @@ export type FeatureKey =
   | "subject"
   | "documents"
   | "generate"
+  | "flashcards"
+  | "quizzes"
   | "chat"
   | "history";
 
@@ -32,7 +34,7 @@ export const FEATURE_REGISTRY: FeatureItem[] = [
   {
     key: "documents",
     title: "Documents",
-    href: "/documents/new",
+    href: "/documents",
     description: "Ingestion jobs and processed documents.",
     enabled: true,
   },
@@ -41,6 +43,20 @@ export const FEATURE_REGISTRY: FeatureItem[] = [
     title: "Generate",
     href: "/generate",
     description: "Flashcards and quiz generation workspace.",
+    enabled: true,
+  },
+  {
+    key: "flashcards",
+    title: "Flashcards",
+    href: "/flashcards",
+    description: "Library and editor for generated flashcard groups.",
+    enabled: true,
+  },
+  {
+    key: "quizzes",
+    title: "Quizzes",
+    href: "/quizzes",
+    description: "Library and editor for generated quiz groups.",
     enabled: true,
   },
   {

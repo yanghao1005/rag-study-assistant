@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     app_name: str = Field(default="RAG Study Assistant Backend v5")
     api_prefix: str = Field(default="/api")
     debug: bool = Field(default=False)
+    cors_allow_origins: str = Field(
+        default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+    )
 
     enable_agentic_rag: bool = Field(default=False)
     enable_hybrid_retrieval: bool = Field(default=True)

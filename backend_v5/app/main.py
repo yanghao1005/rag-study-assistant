@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
@@ -10,6 +11,17 @@ from app.presentation.api.router import api_router
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name)
+    allowed_origins = [origin.strip() for origin in settings.cors_allow_origins.split(",") if origin.strip()]
+    allow_all_origins = "*" in allowed_origins
+    if allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"] if allow_all_origins else allowed_origins,
+            allow_credentials=not allow_all_origins,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=["X-Request-ID"],
+        )
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(
         AbuseProtectionMiddleware,

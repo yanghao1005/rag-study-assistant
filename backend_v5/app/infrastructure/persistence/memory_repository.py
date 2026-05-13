@@ -43,6 +43,40 @@ class InMemoryStudyRepository:
         row.update(updates)
         row["updated_at"] = self._now()
 
+    def list_documents(self, *, user_id: str, subject_id: str | None = None) -> list[dict[str, Any]]:
+        rows = [row.copy() for row in self._documents.values() if row.get("user_id") == user_id]
+        if subject_id:
+            rows = [row for row in rows if row.get("subject_id") == subject_id]
+        rows.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+        return rows
+
+    def delete_document(self, *, user_id: str, document_id: str) -> bool:
+        row = self._documents.get(document_id)
+        if not row or row.get("user_id") != user_id:
+            return False
+
+        self._chunks = [chunk for chunk in self._chunks if not (chunk.get("user_id") == user_id and chunk.get("document_id") == document_id)]
+        self._generated = [
+            item
+            for item in self._generated
+            if not (
+                item.get("user_id") == user_id
+                and item.get("scope") == "document"
+                and item.get("scope_id") == document_id
+            )
+        ]
+        self._jobs = {
+            job_id: job
+            for job_id, job in self._jobs.items()
+            if not (
+                job.get("user_id") == user_id
+                and isinstance(job.get("payload"), dict)
+                and str((job.get("payload") or {}).get("document_id") or "") == document_id
+            )
+        }
+        del self._documents[document_id]
+        return True
+
     def get_document(self, *, user_id: str, document_id: str) -> dict[str, Any] | None:
         row = self._documents.get(document_id)
         if not row or row["user_id"] != user_id:
@@ -102,6 +136,28 @@ class InMemoryStudyRepository:
         ]
         rows.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return rows[:limit]
+
+    def get_generated(self, *, user_id: str, generated_id: str) -> dict[str, Any] | None:
+        for row in self._generated:
+            if row.get("id") == generated_id and row.get("user_id") == user_id:
+                return row.copy()
+        return None
+
+    def update_generated(self, *, user_id: str, generated_id: str, content_json: dict[str, Any]) -> dict[str, Any] | None:
+        for row in self._generated:
+            if row.get("id") != generated_id or row.get("user_id") != user_id:
+                continue
+            row["content_json"] = content_json
+            row["updated_at"] = self._now()
+            return row.copy()
+        return None
+
+    def delete_generated(self, *, user_id: str, generated_id: str) -> bool:
+        initial = len(self._generated)
+        self._generated = [
+            row for row in self._generated if not (row.get("id") == generated_id and row.get("user_id") == user_id)
+        ]
+        return len(self._generated) != initial
 
     def create_job(self, *, user_id: str, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         job_id = str(uuid4())

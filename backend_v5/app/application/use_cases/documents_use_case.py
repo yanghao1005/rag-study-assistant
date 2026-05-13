@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.application.use_cases.pipeline_use_case import PipelineUseCase
 from app.domain.ports.repositories import StudyRepository
+from app.core.errors import AppError
 
 
 class DocumentsUseCase:
@@ -113,6 +114,68 @@ class DocumentsUseCase:
             "status": status,
             "job_id": job["id"],
         }
+
+    def list_documents(self, *, user_id: str, subject_id: str | None = None) -> list[dict[str, Any]]:
+        rows = self._repository.list_documents(user_id=user_id, subject_id=subject_id)
+        return [
+            {
+                "id": str(row.get("id") or ""),
+                "subject_id": str(row.get("subject_id") or ""),
+                "document_type": str(row.get("document_type") or ""),
+                "filename": str(row.get("filename") or "Untitled"),
+                "status": str(row.get("status") or "unknown"),
+                "error_message": row.get("error_message"),
+                "total_pages": int(row.get("total_pages") or 0),
+                "file_size": int(row.get("file_size") or 0),
+                "file_path": str(row.get("storage_path") or row.get("file_path") or ""),
+                "created_at": row.get("created_at"),
+                "updated_at": row.get("updated_at"),
+            }
+            for row in rows
+        ]
+
+    def rename_document(self, *, user_id: str, document_id: str, filename: str) -> dict[str, Any]:
+        clean_name = filename.strip()
+        if not clean_name:
+            raise AppError(error="invalid_filename", message="Filename cannot be empty", status_code=422)
+
+        document = self._repository.get_document(user_id=user_id, document_id=document_id)
+        if not document:
+            raise AppError(error="document_not_found", message="Document not found", status_code=404)
+
+        self._repository.update_document(user_id=user_id, document_id=document_id, updates={"filename": clean_name})
+        updated = self._repository.get_document(user_id=user_id, document_id=document_id)
+        if not updated:
+            raise AppError(error="document_not_found", message="Document not found", status_code=404)
+
+        return {
+            "id": str(updated.get("id") or ""),
+            "subject_id": str(updated.get("subject_id") or ""),
+            "document_type": str(updated.get("document_type") or ""),
+            "filename": str(updated.get("filename") or clean_name),
+            "status": str(updated.get("status") or "unknown"),
+            "error_message": updated.get("error_message"),
+            "total_pages": int(updated.get("total_pages") or 0),
+            "file_size": int(updated.get("file_size") or 0),
+            "file_path": str(updated.get("storage_path") or updated.get("file_path") or ""),
+            "created_at": updated.get("created_at"),
+            "updated_at": updated.get("updated_at"),
+        }
+
+    def delete_document(self, *, user_id: str, document_id: str) -> None:
+        document = self._repository.get_document(user_id=user_id, document_id=document_id)
+        if not document:
+            raise AppError(error="document_not_found", message="Document not found", status_code=404)
+
+        storage_path = str(document.get("storage_path") or document.get("file_path") or "")
+        deleted = self._repository.delete_document(user_id=user_id, document_id=document_id)
+        if not deleted:
+            raise AppError(error="document_not_found", message="Document not found", status_code=404)
+
+        if storage_path:
+            path = Path(storage_path)
+            if path.exists() and path.is_file():
+                path.unlink(missing_ok=True)
 
     def _run_job_inline(self, *, user_id: str, job_id: str) -> None:
         job = self._repository.get_job(user_id=user_id, job_id=job_id)

@@ -69,6 +69,22 @@ def test_generate_flashcards_and_history(monkeypatch) -> None:
     assert len(history_body["items"]) >= 1
 
 
+def test_generate_history_rejects_invalid_document_scope_id(monkeypatch) -> None:
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("VECTOR_REPOSITORY_PROVIDER", "memory")
+    monkeypatch.setenv("ENABLE_ASYNC_INGESTION", "false")
+    client, headers = _build_client()
+
+    response = client.get(
+        "/api/generate/history",
+        params={"scope": "document", "scope_id": "undefined", "limit": 10},
+        headers=headers,
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert body["error"] == "invalid_scope_id"
+
+
 def test_create_summary_document(monkeypatch) -> None:
     monkeypatch.setenv("SUPABASE_JWT_SECRET", "test-secret")
     monkeypatch.setenv("VECTOR_REPOSITORY_PROVIDER", "memory")

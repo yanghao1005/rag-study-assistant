@@ -16,3 +16,30 @@ class DocumentUploadResponse(BaseModel):
     file_path: str
     status: str
     job_id: str | None = None
+
+
+class DocumentRecord(BaseModel):
+    id: str
+    subject_id: str
+    document_type: str
+    filename: str
+    status: str
+    error_message: str | None = None
+    total_pages: int = 0
+    file_size: int = 0
+    file_path: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentRecord]
+
+
+class UpdateDocumentRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+
+
+class DeleteDocumentResponse(BaseModel):
+    ok: bool = True
+    document_id: str

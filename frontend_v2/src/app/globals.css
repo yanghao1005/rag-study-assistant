@@ -4,8 +4,8 @@
 @import "../styles/tokens.css";
 
 @theme inline {
-  --font-sans: var(--font-manrope);
-  --font-heading: var(--font-space-grotesk);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-inter);
   --font-mono: var(--font-jetbrains-mono);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -47,10 +47,7 @@
 body {
   @apply bg-background text-foreground font-sans antialiased;
   min-height: 100vh;
-  background-image:
-    radial-gradient(circle at 15% 20%, color-mix(in oklab, var(--color-primary) 16%, transparent), transparent 35%),
-    radial-gradient(circle at 90% 0%, color-mix(in oklab, var(--color-chart-2) 20%, transparent), transparent 33%),
-    linear-gradient(180deg, color-mix(in oklab, var(--color-background) 94%, white), var(--color-background));
+  background-color: var(--sl-base);
 }
 
 h1,
@@ -59,8 +56,34 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-space-grotesk), system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.label-editorial {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.font-mono-data {
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+.rounded-sl-soft {
+  border-radius: 16px;
+}
+
+.rounded-sl-standard {
+  border-radius: 8px;
+}
+
+.shadow-sl-sm {
+  box-shadow: var(--sl-elevation-sm);
+}
+
+.shadow-sl-lg {
+  box-shadow: var(--sl-elevation-lg);
 }
 
 .page-enter {
