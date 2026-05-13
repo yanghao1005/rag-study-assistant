@@ -11,6 +11,11 @@ downloads/
 eggs/
 .eggs/
 lib/
+
+# Keep frontend_v2 source lib tracked
+!frontend_v2/src/lib/
+!frontend_v2/src/lib/**
+
 lib64/
 parts/
 sdist/
