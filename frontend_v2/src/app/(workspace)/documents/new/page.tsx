@@ -1,3 +1,9 @@
+import { redirect } from "next/navigation";
+
+export default function DocumentsNewPage() {
+  redirect("/documents");
+}
+
 "use client";
 
 import { SubjectRequired } from "@/components/auth/subject-required";

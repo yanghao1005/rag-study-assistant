@@ -1,1 +1,5 @@
-"""backend_v5 application package."""
+"""Application package for backend_v5."""
+
+from . import container
+
+__all__ = ["container"]

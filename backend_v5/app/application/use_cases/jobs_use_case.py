@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
-from app.domain.ports.repositories import StudyRepository
+from app.core.errors import AppError
+from app.infrastructure.memory_repository import InMemoryRepository
 
 
+@dataclass
 class JobsUseCase:
-    def __init__(self, *, repository: StudyRepository) -> None:
-        self._repository = repository
+    repository: InMemoryRepository
 
-    def get_job(self, *, user_id: str, job_id: str) -> dict[str, Any] | None:
-        job = self._repository.get_job(user_id=user_id, job_id=job_id)
+    def get_job(self, *, user_id: str, job_id: str) -> dict[str, Any]:
+        job = self.repository.get_job(user_id=user_id, job_id=job_id)
         if not job:
-            return None
-        stages = self._repository.list_stage_runs(job_id=job_id)
-        job["stage_runs"] = stages
+            raise AppError(status_code=404, error="job_not_found", message="Job not found.")
         return job
+

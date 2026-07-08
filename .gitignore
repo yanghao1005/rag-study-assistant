@@ -11,11 +11,14 @@ downloads/
 eggs/
 .eggs/
 lib/
-app/
 
 # Keep frontend_v2 source lib tracked
 !frontend_v2/src/lib/
 !frontend_v2/src/lib/**
+
+# Note:
+# Do not ignore backend application code globally.
+# Legacy archiving is handled explicitly via scripts/docs, not broad ignore rules.
 
 lib64/
 parts/

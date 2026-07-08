@@ -45,3 +45,4 @@ export default function DocumentWorkspacePage({ params }: { params: { documentId
     </div>
   );
 }
+

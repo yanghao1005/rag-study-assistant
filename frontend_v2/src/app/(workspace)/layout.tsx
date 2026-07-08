@@ -8,3 +8,4 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     </WorkspaceGuard>
   );
 }
+
