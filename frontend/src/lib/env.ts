@@ -8,8 +8,23 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export const env = envSchema.parse({
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+let cached: Env | null = null;
+
+export function getEnv(): Env {
+  if (cached) {
+    return cached;
+  }
+  cached = envSchema.parse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  });
+  return cached;
+}
+
+/** @deprecated Prefer getEnv() — kept for gradual migration */
+export const env = new Proxy({} as Env, {
+  get(_target, prop: keyof Env) {
+    return getEnv()[prop];
+  },
 });

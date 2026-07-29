@@ -1,7 +1,11 @@
-export default function HomePage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-4xl font-bold">RAG Study Assistant</h1>
-    </main>
-  );
+import { LandingPage } from "@/components/marketing/landing-page";
+import { createClient } from "@/lib/supabase/server";
+
+export default async function HomePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return <LandingPage signedIn={Boolean(user)} />;
 }

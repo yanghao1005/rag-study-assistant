@@ -28,8 +28,26 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.container = container or build_container(cfg)
-        yield
+        import asyncio
+
+        resolved = container or build_container(cfg)
+        app.state.container = resolved
+        worker_task: asyncio.Task[None] | None = None
+        worker = None
+        if cfg.enable_async_ingestion:
+            worker = resolved.create_ingestion_worker()
+            worker_task = asyncio.create_task(worker.run_forever())
+        try:
+            yield
+        finally:
+            if worker is not None:
+                worker.stop()
+            if worker_task is not None:
+                worker_task.cancel()
+                try:
+                    await worker_task
+                except asyncio.CancelledError:
+                    pass
 
     app = FastAPI(
         title=cfg.app_name,
