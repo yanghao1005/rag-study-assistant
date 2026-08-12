@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.domain.entities.document import DocumentChunk
@@ -46,7 +46,7 @@ class IngestionPipeline:
         if not document.storage_path:
             raise IngestionError("document has no storage_path")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job.mark_running(now=now)
         job.progress = 5
         await self._jobs.update(job)
@@ -135,7 +135,7 @@ class IngestionPipeline:
             document.mark_ready(total_pages=parsed.total_pages)
             await self._documents.update(document)
 
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             job.mark_completed(
                 now=now,
                 result={
@@ -148,7 +148,7 @@ class IngestionPipeline:
         except Exception as exc:  # noqa: BLE001 - convert to job failure
             document.mark_error(str(exc))
             await self._documents.update(document)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             job.mark_failed(now=now, message=str(exc))
             await self._jobs.update(job)
             await self._record_stage(
@@ -167,7 +167,7 @@ class IngestionPipeline:
         stage: PipelineStage,
         status: StageRunStatus,
         started_perf: float,
-        details: dict,
+        details: dict[str, object],
         *,
         duration_override_ms: int | None = None,
     ) -> None:

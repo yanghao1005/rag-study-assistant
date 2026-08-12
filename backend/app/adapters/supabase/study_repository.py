@@ -6,11 +6,16 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from supabase import Client
-
-from app.domain.entities.enums import ArtifactStatus, ArtifactType, Difficulty, QuestionType, SourceScope
+from app.domain.entities.enums import (
+    ArtifactStatus,
+    ArtifactType,
+    Difficulty,
+    QuestionType,
+    SourceScope,
+)
 from app.domain.entities.study import Flashcard, QuizQuestion, StudyArtifact
 from app.ports.repositories import StudyRepositoryPort
+from supabase import Client
 
 
 def _parse_dt(value: Any) -> datetime | None:

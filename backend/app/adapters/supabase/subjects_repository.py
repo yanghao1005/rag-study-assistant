@@ -6,10 +6,9 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from supabase import Client
-
 from app.domain.entities.subject import Subject
 from app.ports.repositories import SubjectRepositoryPort
+from supabase import Client
 
 
 def _parse_dt(value: Any) -> datetime | None:

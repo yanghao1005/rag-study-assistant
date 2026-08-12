@@ -5,10 +5,20 @@ from __future__ import annotations
 from uuid import uuid4
 
 from app.core.errors import AppError
-from app.domain.entities.enums import ArtifactStatus, ArtifactType, Difficulty, QuestionType, SourceScope
+from app.domain.entities.enums import (
+    ArtifactStatus,
+    ArtifactType,
+    Difficulty,
+    QuestionType,
+    SourceScope,
+)
 from app.domain.entities.study import Flashcard, QuizQuestion, StudyArtifact
 from app.ports.llm import ChatCompletionMessage, EmbeddingPort, LLMPort
-from app.ports.repositories import DocumentRepositoryPort, StudyRepositoryPort, SubjectRepositoryPort
+from app.ports.repositories import (
+    DocumentRepositoryPort,
+    StudyRepositoryPort,
+    SubjectRepositoryPort,
+)
 from app.ports.retrieval import RetrievalFilters, VectorSearchPort
 
 
@@ -136,21 +146,25 @@ class GenerationUseCase:
                 )
             )
             artifact_id = artifact.id
-            await self._study.save_flashcards(
-                [
+            flashcards: list[Flashcard] = []
+            for index, card in enumerate(cards_payload):
+                hint_raw = card.get("hint")
+                source_raw = card.get("source_chunk_ids") or []
+                flashcards.append(
                     Flashcard(
                         id=str(uuid4()),
                         user_id=user_id,
                         artifact_id=artifact.id,
-                        front=card["front"],
-                        back=card["back"],
-                        hint=card.get("hint"),
-                        source_chunk_ids=list(card.get("source_chunk_ids") or []),
+                        front=str(card["front"]),
+                        back=str(card["back"]),
+                        hint=str(hint_raw) if hint_raw is not None else None,
+                        source_chunk_ids=[str(cid) for cid in source_raw]
+                        if isinstance(source_raw, list)
+                        else [],
                         position=index,
                     )
-                    for index, card in enumerate(cards_payload)
-                ]
-            )
+                )
+            await self._study.save_flashcards(flashcards)
 
         return {
             "artifact_id": artifact_id,
@@ -231,24 +245,42 @@ class GenerationUseCase:
             )
             artifact_id = artifact.id
             diff = Difficulty(difficulty) if difficulty in {"easy", "medium", "hard"} else None
-            await self._study.save_quiz_questions(
-                [
+            quiz_questions: list[QuizQuestion] = []
+            for index, q in enumerate(questions_payload):
+                options_raw = q["options"]
+                options = (
+                    [str(opt) for opt in options_raw]
+                    if isinstance(options_raw, list)
+                    else []
+                )
+                explanation_raw = q.get("explanation")
+                source_raw = q.get("source_chunk_ids") or []
+                correct_raw = q["correct_option_index"]
+                correct_option_index = (
+                    int(correct_raw)
+                    if isinstance(correct_raw, int | str)
+                    else 0
+                )
+                quiz_questions.append(
                     QuizQuestion(
                         id=str(uuid4()),
                         user_id=user_id,
                         artifact_id=artifact.id,
-                        question=q["question"],
-                        options=q["options"],
-                        correct_option_index=q["correct_option_index"],
-                        explanation=q.get("explanation"),
+                        question=str(q["question"]),
+                        options=options,
+                        correct_option_index=correct_option_index,
+                        explanation=(
+                            str(explanation_raw) if explanation_raw is not None else None
+                        ),
                         question_type=QuestionType.MULTIPLE_CHOICE,
                         difficulty=diff,
-                        source_chunk_ids=list(q.get("source_chunk_ids") or []),
+                        source_chunk_ids=[str(cid) for cid in source_raw]
+                        if isinstance(source_raw, list)
+                        else [],
                         position=index,
                     )
-                    for index, q in enumerate(questions_payload)
-                ]
-            )
+                )
+            await self._study.save_quiz_questions(quiz_questions)
 
         return {
             "artifact_id": artifact_id,

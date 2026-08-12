@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from io import BytesIO
 from uuid import uuid4
@@ -52,8 +53,9 @@ def _assert_supabase_keys_match_url(settings: Settings) -> None:
         key_ref = str(claims.get("ref") or "")
         if url_ref and key_ref and key_ref != url_ref:
             pytest.fail(
-                f"{label} is for project ref={key_ref} but SUPABASE_URL is ref={url_ref}. "
-                "Update backend/.env so URL, anon, service_role and JWT secret are from the same project."
+                f"{label} is for project ref={key_ref} but SUPABASE_URL is "
+                f"ref={url_ref}. Update backend/.env so URL, anon, "
+                "service_role and JWT secret are from the same project."
             )
 
 
@@ -78,7 +80,10 @@ def real_settings() -> Settings:
     if not _credentials_ready(settings):
         pytest.skip("Missing or placeholder Supabase/OpenAI credentials in .env")
     if settings.llm_provider != "openai" or settings.embedding_provider != "openai":
-        pytest.skip("Real integration tests require LLM_PROVIDER=openai and EMBEDDING_PROVIDER=openai")
+        pytest.skip(
+            "Real integration tests require LLM_PROVIDER=openai "
+            "and EMBEDDING_PROVIDER=openai"
+        )
     _assert_supabase_keys_match_url(settings)
     return settings
 
@@ -127,10 +132,8 @@ def real_user(real_settings: Settings) -> Iterator[RealUserSession]:
     try:
         yield session
     finally:
-        try:
+        with suppress(Exception):
             admin.auth.admin.delete_user(user.id)
-        except Exception:  # noqa: BLE001
-            pass
 
 
 @pytest.fixture(scope="session")

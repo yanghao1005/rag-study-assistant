@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,11 +69,12 @@ class LLMPort(ABC):
         ...
 
     @abstractmethod
-    async def stream(
+    def stream(
         self,
         *,
         messages: list[ChatCompletionMessage],
         temperature: float = 0.2,
         max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
+        """Async-generator style stream; implementations use `async def`."""
         ...

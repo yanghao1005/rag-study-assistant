@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
+from app.application.ingestion_pipeline import IngestionPipeline
 from app.container import AppContainer
 from app.core.config import Settings
 from app.domain.entities.chat import ChatMessage, ChatThread
@@ -32,12 +32,11 @@ from app.ports.repositories import (
 )
 from app.ports.retrieval import (
     HybridRetrievalResult,
-    RetrievedChunk,
     RetrievalFilters,
+    RetrievedChunk,
     VectorSearchPort,
 )
 from app.ports.storage import StoragePort, StoredObject
-from app.application.ingestion_pipeline import IngestionPipeline
 
 
 class FakeAuth(AuthPort):
@@ -60,7 +59,12 @@ class FakeStorage(StoragePort):
         self, *, path: str, data: bytes, content_type: str, upsert: bool = False
     ) -> StoredObject:
         self.objects[path] = data
-        return StoredObject(path=path, bucket="documents", size_bytes=len(data), content_type=content_type)
+        return StoredObject(
+            path=path,
+            bucket="documents",
+            size_bytes=len(data),
+            content_type=content_type,
+        )
 
     async def download(self, *, path: str) -> bytes:
         return self.objects[path]
@@ -117,7 +121,11 @@ class FakeDocuments(DocumentRepositoryPort):
         return None
 
     async def list_for_subject(self, *, user_id: str, subject_id: str) -> list[Document]:
-        return [d for d in self.items.values() if d.user_id == user_id and d.subject_id == subject_id]
+        return [
+            d
+            for d in self.items.values()
+            if d.user_id == user_id and d.subject_id == subject_id
+        ]
 
     async def update(self, document: Document) -> Document:
         self.items[document.id] = document
@@ -151,7 +159,7 @@ class FakeDocuments(DocumentRepositoryPort):
         limit: int = 100,
     ) -> list[DocumentChunk]:
         values: list[DocumentChunk] = []
-        for doc_id, chunks in self.chunks.items():
+        for _doc_id, chunks in self.chunks.items():
             for chunk in chunks:
                 if chunk.user_id != user_id:
                     continue
@@ -188,7 +196,7 @@ class FakeJobs(JobRepositoryPort):
                 continue
             if job_types and job.job_type.value not in job_types:
                 continue
-            job.mark_running(now=datetime.now(timezone.utc))
+            job.mark_running(now=datetime.now(UTC))
             return job
         return None
 

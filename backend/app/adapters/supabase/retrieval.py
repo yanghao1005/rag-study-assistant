@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from supabase import Client
-
 from app.ports.retrieval import (
     HybridRetrievalResult,
-    RetrievedChunk,
     RetrievalFilters,
+    RetrievedChunk,
     VectorSearchPort,
 )
+from supabase import Client
 
 
 def _row_to_chunk(

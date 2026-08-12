@@ -46,7 +46,11 @@ class ChatUseCase:
         if thread_id:
             thread = await self._chat.get_thread(user_id=user_id, thread_id=thread_id)
             if thread is None:
-                raise AppError(status_code=404, error="thread_not_found", message="Chat thread not found.")
+                raise AppError(
+                    status_code=404,
+                    error="thread_not_found",
+                    message="Chat thread not found.",
+                )
         elif save:
             thread = await self._chat.create_thread(
                 ChatThread(

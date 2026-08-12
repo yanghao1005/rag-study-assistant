@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request
@@ -22,12 +23,12 @@ if TYPE_CHECKING:
 
 def create_app(
     settings: Settings | None = None,
-    container: "AppContainer | None" = None,
+    container: AppContainer | None = None,
 ) -> FastAPI:
     cfg = settings or get_settings()
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         import asyncio
 
         resolved = container or build_container(cfg)
@@ -44,10 +45,8 @@ def create_app(
                 worker.stop()
             if worker_task is not None:
                 worker_task.cancel()
-                try:
+                with suppress(asyncio.CancelledError):
                     await worker_task
-                except asyncio.CancelledError:
-                    pass
 
     app = FastAPI(
         title=cfg.app_name,

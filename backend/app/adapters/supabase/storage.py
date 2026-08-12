@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from supabase import Client
-
 from app.ports.storage import StoragePort, StoredObject
+from supabase import Client
 
 
 class SupabaseStorageAdapter(StoragePort):
@@ -30,7 +29,8 @@ class SupabaseStorageAdapter(StoragePort):
         )
 
     async def download(self, *, path: str) -> bytes:
-        return self._client.storage.from_(self._bucket).download(path)
+        data = self._client.storage.from_(self._bucket).download(path)
+        return bytes(data)
 
     async def delete(self, *, path: str) -> None:
         self._client.storage.from_(self._bucket).remove([path])

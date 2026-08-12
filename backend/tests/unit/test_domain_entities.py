@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -75,7 +75,7 @@ def test_flashcard_and_quiz_validation() -> None:
 
 
 def test_job_progress_and_completion() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     job = Job(id="j1", user_id="u1", job_type=JobType.INGEST_DOCUMENT)
     job.mark_running(now=now)
     assert job.status == JobStatus.RUNNING

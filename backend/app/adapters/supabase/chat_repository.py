@@ -6,11 +6,10 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from supabase import Client
-
 from app.domain.entities.chat import ChatMessage, ChatThread
 from app.domain.entities.enums import ChatRole
 from app.ports.repositories import ChatRepositoryPort
+from supabase import Client
 
 
 def _parse_dt(value: Any) -> datetime | None:

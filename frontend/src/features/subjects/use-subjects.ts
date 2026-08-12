@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useSessionStore } from "@/features/auth/session-store";
-import { listSubjects } from "@/lib/api/subjects";
+import { createSubject, deleteSubject, listSubjects } from "@/lib/api/subjects";
 
 export function useSubjects() {
   const token = useSessionStore((s) => s.token);
@@ -16,5 +16,30 @@ export function useSubjects() {
       return data.items;
     },
     enabled: authResolved && Boolean(token),
+  });
+}
+
+export function useCreateSubject() {
+  const token = useSessionStore((s) => s.token);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: { name: string; description?: string; color?: string }) =>
+      createSubject(token, body),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["subjects"] });
+    },
+  });
+}
+
+export function useDeleteSubject() {
+  const token = useSessionStore((s) => s.token);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (subjectId: string) => deleteSubject(token, subjectId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["subjects"] });
+    },
   });
 }

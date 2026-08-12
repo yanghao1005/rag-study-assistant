@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from typing import Any
 
 from google import genai
 from google.genai import types
@@ -56,7 +55,7 @@ class GeminiLLMAdapter(LLMPort):
         )
         response = await self._client.aio.models.generate_content(
             model=self._model,
-            contents=self._to_contents(rest),
+            contents=self._to_contents(rest),  # type: ignore[arg-type]
             config=config,
         )
         usage: dict[str, int] = {}
@@ -94,7 +93,7 @@ class GeminiLLMAdapter(LLMPort):
         )
         response = await self._client.aio.models.generate_content(
             model=self._model,
-            contents=self._to_contents(rest),
+            contents=self._to_contents(rest),  # type: ignore[arg-type]
             config=config,
         )
         data = json.loads(response.text or "{}")
@@ -122,7 +121,7 @@ class GeminiLLMAdapter(LLMPort):
         )
         stream = await self._client.aio.models.generate_content_stream(
             model=self._model,
-            contents=self._to_contents(rest),
+            contents=self._to_contents(rest),  # type: ignore[arg-type]
             config=config,
         )
         async for chunk in stream:

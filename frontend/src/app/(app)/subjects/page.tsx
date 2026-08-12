@@ -2,21 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
+import { toast } from "sonner";
 
+import { FadeIn, Stagger, StaggerItem } from "@/components/motion/fade-in";
 import { AppShell } from "@/components/shell/app-shell";
 import { CreateSubjectDialog } from "@/components/subjects/create-subject-dialog";
-import { FadeIn, Stagger, StaggerItem } from "@/components/motion/fade-in";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSessionStore } from "@/features/auth/session-store";
-import { useSubjects } from "@/features/subjects/use-subjects";
+import { useDeleteSubject, useSubjects } from "@/features/subjects/use-subjects";
 
 export default function SubjectsPage() {
   const router = useRouter();
   const { data: subjects, isLoading, isError, error } = useSubjects();
+  const remove = useDeleteSubject();
   const setSubjectId = useSessionStore((s) => s.setSubjectId);
+  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!isLoading && subjects && subjects.length === 0) {
@@ -61,14 +64,39 @@ export default function SubjectsPage() {
                       <p className="truncate text-sm text-muted-foreground">{subject.description}</p>
                     ) : null}
                   </div>
-                  <Button asChild variant="ghost" className="text-primary">
-                    <Link
-                      href={`/subjects/${subject.id}/documents`}
-                      onClick={() => setSubjectId(subject.id)}
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button asChild variant="ghost" className="text-primary">
+                      <Link
+                        href={`/subjects/${subject.id}/documents`}
+                        onClick={() => setSubjectId(subject.id)}
+                      >
+                        Abrir
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="cursor-pointer text-destructive"
+                      disabled={pending || remove.isPending}
+                      onClick={() => {
+                        if (!window.confirm(`¿Eliminar “${subject.name}”?`)) {
+                          return;
+                        }
+                        startTransition(async () => {
+                          try {
+                            await remove.mutateAsync(subject.id);
+                            toast.success("Asignatura eliminada");
+                          } catch (err) {
+                            toast.error(
+                              err instanceof Error ? err.message : "No se pudo eliminar",
+                            );
+                          }
+                        });
+                      }}
                     >
-                      Abrir
-                    </Link>
-                  </Button>
+                      Eliminar
+                    </Button>
+                  </div>
                 </div>
               </StaggerItem>
             ))}

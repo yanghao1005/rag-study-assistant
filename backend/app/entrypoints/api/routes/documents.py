@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, UploadFile
@@ -42,8 +44,8 @@ async def list_documents(
 async def upload_document(
     user: CurrentUserDep,
     container: ContainerDep,
-    subject_id: str = Form(...),
-    file: UploadFile = File(...),
+    subject_id: Annotated[str, Form(...)],
+    file: Annotated[UploadFile, File(...)],
 ) -> dict[str, object]:
     subject = await container.subjects.get(user_id=user.id, subject_id=subject_id)
     if subject is None:
@@ -132,9 +134,7 @@ async def delete_document(
     if document is None:
         raise AppError(status_code=404, error="document_not_found", message="Document not found.")
     if document.storage_path:
-        try:
+        with suppress(Exception):
             await container.storage.delete(path=document.storage_path)
-        except Exception:  # noqa: BLE001
-            pass
     deleted = await container.documents.delete(user_id=user.id, document_id=document_id)
     return {"deleted": deleted}

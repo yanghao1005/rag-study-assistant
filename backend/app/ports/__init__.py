@@ -1,6 +1,6 @@
 """Outbound ports (hexagonal adapters interfaces)."""
 
-from app.ports.auth import AuthPort, AuthenticatedUser
+from app.ports.auth import AuthenticatedUser, AuthPort
 from app.ports.llm import (
     ChatCompletionMessage,
     EmbeddingPort,
@@ -19,8 +19,8 @@ from app.ports.repositories import (
 )
 from app.ports.retrieval import (
     HybridRetrievalResult,
-    RetrievedChunk,
     RetrievalFilters,
+    RetrievedChunk,
     VectorSearchPort,
 )
 from app.ports.storage import StoragePort, StoredObject

@@ -6,11 +6,10 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from supabase import Client
-
 from app.domain.entities.document import Document, DocumentChunk
 from app.domain.entities.enums import DocumentStatus, DocumentType
 from app.ports.repositories import DocumentRepositoryPort
+from supabase import Client
 
 
 def _parse_dt(value: Any) -> datetime | None:

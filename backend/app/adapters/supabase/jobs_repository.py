@@ -5,11 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from supabase import Client
-
 from app.domain.entities.enums import JobStatus, JobType, PipelineStage, StageRunStatus
 from app.domain.entities.job import Job, PipelineStageRun
 from app.ports.repositories import JobRepositoryPort
+from supabase import Client
 
 
 def _parse_dt(value: Any) -> datetime | None:
