@@ -50,6 +50,22 @@ export function LoginForm() {
     });
   }
 
+  function signInWithGoogle() {
+    startTransition(async () => {
+      const supabase = createClient();
+      const origin = window.location.origin;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      if (error) {
+        toast.error(error.message);
+      }
+    });
+  }
+
   return (
     <form onSubmit={submit} className="flex w-full flex-col gap-5">
       <div
@@ -88,6 +104,23 @@ export function LoginForm() {
         ))}
       </div>
 
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className="hover-lift h-11 w-full cursor-pointer"
+        disabled={pending}
+        onClick={signInWithGoogle}
+      >
+        Continuar con Google
+      </Button>
+
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        o con email
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
       <div className="flex flex-col gap-2">
         <Label htmlFor="email" className="text-muted-foreground">
           Email
@@ -105,9 +138,19 @@ export function LoginForm() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password" className="text-muted-foreground">
-          Contraseña
-        </Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="password" className="text-muted-foreground">
+            Contraseña
+          </Label>
+          {mode === "signin" ? (
+            <Link
+              href="/forgot-password"
+              className="text-xs text-primary underline-offset-4 hover:underline"
+            >
+              ¿Olvidaste la contraseña?
+            </Link>
+          ) : null}
+        </div>
         <Input
           id="password"
           type="password"
@@ -125,7 +168,7 @@ export function LoginForm() {
         type="submit"
         size="lg"
         disabled={pending}
-        className="hover-lift h-11 w-full text-base transition-transform duration-200 active:scale-[0.98]"
+        className="hover-lift h-11 w-full cursor-pointer text-base transition-transform duration-200 active:scale-[0.98]"
       >
         {pending ? "Espera…" : mode === "signin" ? "Continuar" : "Crear cuenta"}
       </Button>
@@ -139,10 +182,6 @@ export function LoginForm() {
         >
           {mode === "signin" ? "Crear cuenta" : "Entrar"}
         </button>
-      </p>
-
-      <p className="sr-only">
-        <Link href="/">Volver al inicio</Link>
       </p>
     </form>
   );

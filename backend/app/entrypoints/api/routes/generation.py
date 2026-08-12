@@ -56,6 +56,33 @@ async def generate_quiz(
     )
 
 
+@router.get("/artifacts")
+async def list_artifacts(
+    user: CurrentUserDep,
+    container: ContainerDep,
+    subject_id: str,
+    artifact_type: str | None = None,
+) -> dict[str, object]:
+    items = await container.study.list_artifacts(
+        user_id=user.id,
+        subject_id=subject_id,
+        artifact_type=artifact_type,
+    )
+    return {
+        "items": [
+            {
+                "id": a.id,
+                "artifact_type": a.artifact_type.value,
+                "title": a.title,
+                "status": a.status.value,
+                "subject_id": a.subject_id,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in items
+        ]
+    }
+
+
 @router.get("/artifacts/{artifact_id}")
 async def get_artifact(
     artifact_id: str,

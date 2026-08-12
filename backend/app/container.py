@@ -82,6 +82,8 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         dense_top_k=cfg.retrieval_dense_top_k,
         lexical_top_k=cfg.retrieval_lexical_top_k,
         final_top_k=cfg.retrieval_final_top_k,
+        rerank_provider=cfg.rerank_provider,
+        llm=llm if cfg.rerank_provider == "llm" else None,
     )
     pipeline = IngestionPipeline(
         documents=documents,

@@ -40,8 +40,20 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+
+  // Hide living design pages outside local/dev.
+  if (
+    path.startsWith("/design") &&
+    process.env.NODE_ENV === "production" &&
+    process.env.NEXT_PUBLIC_ENABLE_DESIGN !== "1"
+  ) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   const isProtected =
-    path.startsWith("/subjects") || path.startsWith("/onboarding");
+    path.startsWith("/subjects") ||
+    path.startsWith("/onboarding") ||
+    path.startsWith("/reset-password");
   const isAuthRoute = path.startsWith("/login");
 
   if (user && isAuthRoute) {

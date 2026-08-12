@@ -125,6 +125,60 @@ def test_chat_ask(api: tuple[TestClient, object]) -> None:
     assert payload["thread_id"]
 
 
+def test_chat_stream_and_history(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="History")
+    container.subjects.items[subject.id] = subject
+
+    with client.stream(
+        "POST",
+        "/api/chat/ask/stream",
+        headers=auth_headers(),
+        json={"subject_id": subject.id, "question": "Explica", "save": True},
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(response.iter_text())
+    assert "meta" in body
+    assert "token" in body
+    assert "done" in body
+
+    threads = client.get(
+        "/api/chat/threads",
+        headers=auth_headers(),
+        params={"subject_id": subject.id},
+    )
+    assert threads.status_code == 200
+    items = threads.json()["items"]
+    assert len(items) == 1
+    thread_id = items[0]["id"]
+
+    messages = client.get(
+        f"/api/chat/threads/{thread_id}/messages",
+        headers=auth_headers(),
+    )
+    assert messages.status_code == 200
+    assert len(messages.json()["items"]) >= 2
+
+
+def test_list_artifacts(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="Biology")
+    container.subjects.items[subject.id] = subject
+    created = client.post(
+        "/api/generate/flashcards",
+        headers=auth_headers(),
+        json={"subject_id": subject.id, "count": 1, "save": True},
+    )
+    assert created.status_code == 200
+    listed = client.get(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        params={"subject_id": subject.id},
+    )
+    assert listed.status_code == 200
+    assert len(listed.json()["items"]) >= 1
+
+
 def test_generate_flashcards_and_quiz(api: tuple[TestClient, object]) -> None:
     client, container = api
     subject = Subject(id=str(uuid4()), user_id="user-1", name="Biology")

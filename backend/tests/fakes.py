@@ -323,6 +323,8 @@ class FakeLLM(LLMPort):
             data: dict[str, Any] = {
                 "cards": [{"front": "Q1", "back": "A1", "hint": None}]
             }
+        elif schema_name == "rerank":
+            data = {"order": [1]}
         else:
             data = {
                 "questions": [
@@ -343,9 +345,8 @@ class FakeLLM(LLMPort):
         temperature: float = 0.2,
         max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
-        yield "hola"
-        if False:  # pragma: no cover
-            yield ""
+        for part in ("Respuesta ", "en ", "streaming"):
+            yield part
 
 
 class FakeRetrieval(VectorSearchPort):

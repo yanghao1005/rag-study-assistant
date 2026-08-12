@@ -62,6 +62,11 @@ function baseUrlCandidates(): string[] {
   return candidates;
 }
 
+/** Exported for SSE/streaming clients that cannot use apiRequest. */
+export function baseUrlCandidatesForExport(): string[] {
+  return baseUrlCandidates();
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (options.token) {

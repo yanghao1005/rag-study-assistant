@@ -9,13 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubjectDocuments } from "@/features/documents/use-documents";
-import { useGenerateQuiz } from "@/features/generation/use-generation";
+import {
+  useArtifacts,
+  useGenerateQuiz,
+  useLoadArtifact,
+} from "@/features/generation/use-generation";
 import type { QuizQuestionDto } from "@/lib/api/generation";
 import { cn } from "@/lib/utils";
 
 export function QuizPanel({ subjectId }: { subjectId: string }) {
   const { data: documents, isLoading } = useSubjectDocuments(subjectId);
   const generate = useGenerateQuiz();
+  const loadArtifact = useLoadArtifact();
+  const { data: artifacts } = useArtifacts(subjectId, "quiz");
   const [questions, setQuestions] = useState<QuizQuestionDto[]>([]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -64,6 +70,27 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
         toast.success(`${result.questions.length} preguntas listas`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Error al generar");
+      }
+    });
+  }
+
+  function onOpenArtifact(artifactId: string) {
+    startTransition(async () => {
+      try {
+        const artifact = await loadArtifact.mutateAsync(artifactId);
+        if (!artifact.questions?.length) {
+          toast.error("Este quiz no tiene preguntas.");
+          return;
+        }
+        setQuestions(artifact.questions);
+        setIndex(0);
+        setSelected(null);
+        setRevealed(false);
+        setScore(0);
+        setFinished(false);
+        toast.success("Quiz cargado");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "No se pudo cargar");
       }
     });
   }
@@ -134,6 +161,24 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
           {pending || generate.isPending ? "Generando…" : "Generar quiz"}
         </Button>
       </div>
+
+      {artifacts && artifacts.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {artifacts.slice(0, 6).map((item) => (
+            <Button
+              key={item.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hover-lift"
+              disabled={pending || loadArtifact.isPending}
+              onClick={() => onOpenArtifact(item.id)}
+            >
+              {item.title || "Quiz"}
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       {!current ? (
         <EmptyState

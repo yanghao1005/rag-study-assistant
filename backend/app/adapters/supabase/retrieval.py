@@ -1,9 +1,11 @@
-"""Hybrid retrieval adapter over Supabase RPC (dense + lexical + RRF)."""
+"""Hybrid retrieval adapter over Supabase RPC (dense + lexical + RRF + optional LLM rerank)."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from app.adapters.retrieval.llm_rerank import llm_rerank_chunks
+from app.ports.llm import LLMPort
 from app.ports.retrieval import (
     HybridRetrievalResult,
     RetrievalFilters,
@@ -45,12 +47,16 @@ class SupabaseHybridRetrievalAdapter(VectorSearchPort):
         lexical_top_k: int = 20,
         final_top_k: int = 8,
         rrf_k: int = 60,
+        rerank_provider: str = "none",
+        llm: LLMPort | None = None,
     ) -> None:
         self._client = client
         self._dense_top_k = dense_top_k
         self._lexical_top_k = lexical_top_k
         self._final_top_k = final_top_k
         self._rrf_k = rrf_k
+        self._rerank_provider = rerank_provider
+        self._llm = llm
 
     async def dense_search(
         self,
@@ -118,11 +124,14 @@ class SupabaseHybridRetrievalAdapter(VectorSearchPort):
         for rank, chunk_id in enumerate(lexical_ids, start=1):
             scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (self._rrf_k + rank)
 
-        ranked_ids = sorted(scores.keys(), key=lambda item: scores[item], reverse=True)[:final_k]
-        merged: list[RetrievedChunk] = []
+        pool_size = max(final_k * 2, final_k) if self._rerank_provider == "llm" else final_k
+        ranked_ids = sorted(scores.keys(), key=lambda item: scores[item], reverse=True)[
+            :pool_size
+        ]
+        candidates: list[RetrievedChunk] = []
         for chunk_id in ranked_ids:
             base = by_id[chunk_id]
-            merged.append(
+            candidates.append(
                 RetrievedChunk(
                     id=base.id,
                     document_id=base.document_id,
@@ -138,5 +147,15 @@ class SupabaseHybridRetrievalAdapter(VectorSearchPort):
                     score=scores[chunk_id],
                 )
             )
+
+        if self._rerank_provider == "llm" and self._llm is not None and candidates:
+            merged = await llm_rerank_chunks(
+                self._llm,
+                query=query_text,
+                chunks=candidates,
+                top_k=final_k,
+            )
+        else:
+            merged = candidates[:final_k]
 
         return HybridRetrievalResult(chunks=merged, dense_ids=dense_ids, lexical_ids=lexical_ids)

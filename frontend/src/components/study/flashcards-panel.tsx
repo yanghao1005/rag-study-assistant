@@ -9,13 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubjectDocuments } from "@/features/documents/use-documents";
-import { useGenerateFlashcards } from "@/features/generation/use-generation";
+import {
+  useArtifacts,
+  useGenerateFlashcards,
+  useLoadArtifact,
+} from "@/features/generation/use-generation";
 import type { FlashcardDto } from "@/lib/api/generation";
 
 export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
   const reduce = useReducedMotion();
   const { data: documents, isLoading } = useSubjectDocuments(subjectId);
   const generate = useGenerateFlashcards();
+  const loadArtifact = useLoadArtifact();
+  const { data: artifacts } = useArtifacts(subjectId, "flashcard_deck");
   const [cards, setCards] = useState<FlashcardDto[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -67,6 +73,24 @@ export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
     });
   }
 
+  function onOpenArtifact(artifactId: string) {
+    startTransition(async () => {
+      try {
+        const artifact = await loadArtifact.mutateAsync(artifactId);
+        if (!artifact.cards?.length) {
+          toast.error("Este deck no tiene tarjetas.");
+          return;
+        }
+        setCards(artifact.cards);
+        setIndex(0);
+        setFlipped(false);
+        toast.success("Deck cargado");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "No se pudo cargar");
+      }
+    });
+  }
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -92,6 +116,24 @@ export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
           {pending || generate.isPending ? "Generando…" : "Generar"}
         </Button>
       </FadeIn>
+
+      {artifacts && artifacts.length > 0 ? (
+        <div className="flex w-full flex-wrap gap-2">
+          {artifacts.slice(0, 6).map((item) => (
+            <Button
+              key={item.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hover-lift"
+              disabled={pending || loadArtifact.isPending}
+              onClick={() => onOpenArtifact(item.id)}
+            >
+              {item.title || "Deck"}
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       {!current ? (
         <EmptyState

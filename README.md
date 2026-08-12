@@ -57,6 +57,17 @@ pnpm exec tsc --noEmit
 pnpm build
 ```
 
+Auth notes:
+- Email/password + Google OAuth (`Continuar con Google`) — enable Google in Supabase Auth providers.
+- Password reset: `/forgot-password` → email link → `/reset-password`.
+- Add redirect URLs in Supabase: `http://localhost:3000/auth/callback` (and prod URL).
+
+Optional retrieval rerank (backend `.env`):
+
+```bash
+RERANK_PROVIDER=llm
+```
+
 ## Flujo mínimo
 
 1. Crear cuenta en `/login`
