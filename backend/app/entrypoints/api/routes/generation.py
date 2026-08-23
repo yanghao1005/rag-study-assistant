@@ -35,6 +35,7 @@ async def generate_flashcards(
         count=body.count,
         query=body.query,
         document_id=body.document_id,
+        document_ids=body.document_ids,
         save=body.save,
     )
 
@@ -51,6 +52,7 @@ async def generate_quiz(
         count=body.count,
         query=body.query,
         document_id=body.document_id,
+        document_ids=body.document_ids,
         difficulty=body.difficulty,
         save=body.save,
     )

@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { AnimatePresence, FadeIn, motion } from "@/components/motion/fade-in";
 import { EmptyState } from "@/components/shared/empty-state";
+import { DocumentScopePicker } from "@/components/documents/document-scope-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubjectDocuments } from "@/features/documents/use-documents";
+import {
+  documentScopePayload,
+  useSelectedDocumentIds,
+} from "@/features/documents/use-document-scope";
 import {
   useArtifacts,
   useGenerateQuiz,
@@ -22,6 +27,7 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
   const generate = useGenerateQuiz();
   const loadArtifact = useLoadArtifact();
   const { data: artifacts } = useArtifacts(subjectId, "quiz");
+  const selectedDocumentIds = useSelectedDocumentIds(subjectId);
   const [questions, setQuestions] = useState<QuizQuestionDto[]>([]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -29,14 +35,26 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [query, setQuery] = useState("");
-  const [pending, startTransition] = useTransition();
 
   const readyDocs = documents?.filter((d) => d.status === "ready") ?? [];
   const current = questions[index];
+  const generating = generate.isPending;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!current || revealed) {
+      if (!current || finished) {
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!revealed && selected !== null) {
+          confirmAnswer();
+        } else if (revealed) {
+          next();
+        }
+        return;
+      }
+      if (revealed) {
         return;
       }
       const num = Number(e.key);
@@ -46,56 +64,53 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, revealed]);
+  }, [current, revealed, selected, index, questions.length, finished]);
 
-  function onGenerate() {
-    startTransition(async () => {
-      try {
-        const result = await generate.mutateAsync({
-          subject_id: subjectId,
-          count: 5,
-          query: query.trim() || undefined,
-          difficulty: "medium",
-        });
-        if (!result.questions.length) {
-          toast.error("No se generaron preguntas.");
-          return;
-        }
-        setQuestions(result.questions);
-        setIndex(0);
-        setSelected(null);
-        setRevealed(false);
-        setScore(0);
-        setFinished(false);
-        toast.success(`${result.questions.length} preguntas listas`);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error al generar");
+  async function onGenerate() {
+    try {
+      const result = await generate.mutateAsync({
+        subject_id: subjectId,
+        count: 5,
+        query: query.trim() || undefined,
+        difficulty: "medium",
+        ...documentScopePayload(selectedDocumentIds),
+      });
+      if (!result.questions.length) {
+        toast.error("No se generaron preguntas.");
+        return;
       }
-    });
+      setQuestions(result.questions);
+      setIndex(0);
+      setSelected(null);
+      setRevealed(false);
+      setScore(0);
+      setFinished(false);
+      toast.success(`${result.questions.length} preguntas listas`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al generar");
+    }
   }
 
-  function onOpenArtifact(artifactId: string) {
-    startTransition(async () => {
-      try {
-        const artifact = await loadArtifact.mutateAsync(artifactId);
-        if (!artifact.questions?.length) {
-          toast.error("Este quiz no tiene preguntas.");
-          return;
-        }
-        setQuestions(artifact.questions);
-        setIndex(0);
-        setSelected(null);
-        setRevealed(false);
-        setScore(0);
-        setFinished(false);
-        toast.success("Quiz cargado");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "No se pudo cargar");
+  async function onOpenArtifact(artifactId: string) {
+    try {
+      const artifact = await loadArtifact.mutateAsync(artifactId);
+      if (!artifact.questions?.length) {
+        toast.error("Este quiz no tiene preguntas.");
+        return;
       }
-    });
+      setQuestions(artifact.questions);
+      setIndex(0);
+      setSelected(null);
+      setRevealed(false);
+      setScore(0);
+      setFinished(false);
+      toast.success("Quiz cargado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo cargar");
+    }
   }
 
-  function confirm() {
+  function confirmAnswer() {
     if (selected === null || !current) {
       return;
     }
@@ -129,36 +144,17 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
     );
   }
 
-  if (finished) {
-    return (
-      <EmptyState
-        title={`Resultado: ${score} / ${questions.length}`}
-        description="Puedes generar otro quiz cuando quieras."
-        action={
-          <Button
-            className="hover-lift"
-            onClick={() => {
-              setFinished(false);
-              setQuestions([]);
-            }}
-          >
-            Nuevo quiz
-          </Button>
-        }
-      />
-    );
-  }
-
   return (
     <FadeIn className="mx-auto flex max-w-xl flex-col gap-6" y={8}>
+      <DocumentScopePicker subjectId={subjectId} documents={readyDocs} />
       <div className="flex flex-col gap-3 sm:flex-row">
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tema opcional"
+          placeholder="Concepto del temario (ej. BMC)"
         />
-        <Button className="hover-lift" onClick={onGenerate} disabled={pending || generate.isPending}>
-          {pending || generate.isPending ? "Generando…" : "Generar quiz"}
+        <Button className="hover-lift" onClick={() => void onGenerate()} disabled={generating}>
+          {generating ? "Generando…" : "Generar quiz"}
         </Button>
       </div>
 
@@ -171,8 +167,8 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
               variant="outline"
               size="sm"
               className="hover-lift"
-              disabled={pending || loadArtifact.isPending}
-              onClick={() => onOpenArtifact(item.id)}
+              disabled={generating || loadArtifact.isPending}
+              onClick={() => void onOpenArtifact(item.id)}
             >
               {item.title || "Quiz"}
             </Button>
@@ -180,7 +176,26 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
         </div>
       ) : null}
 
-      {!current ? (
+      {finished ? (
+        <EmptyState
+          title={`Resultado: ${score} / ${questions.length}`}
+          description="Puedes generar otro quiz o repetir este."
+          action={
+            <Button
+              className="hover-lift"
+              onClick={() => {
+                setFinished(false);
+                setIndex(0);
+                setSelected(null);
+                setRevealed(false);
+                setScore(0);
+              }}
+            >
+              Repetir quiz
+            </Button>
+          }
+        />
+      ) : !current ? (
         <EmptyState
           title="Sin preguntas todavía"
           description="Genera un quiz a partir de tus documentos indexados."
@@ -237,7 +252,7 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
 
             <div className="flex gap-3">
               {!revealed ? (
-                <Button className="hover-lift" onClick={confirm} disabled={selected === null}>
+                <Button className="hover-lift" onClick={confirmAnswer} disabled={selected === null}>
                   Confirmar
                 </Button>
               ) : (
@@ -246,6 +261,7 @@ export function QuizPanel({ subjectId }: { subjectId: string }) {
                 </Button>
               )}
             </div>
+            <p className="text-xs text-muted-foreground">1–4 elige · Enter confirma o avanza</p>
           </motion.div>
         </AnimatePresence>
       )}

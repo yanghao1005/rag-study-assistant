@@ -57,13 +57,16 @@ auth.users
 | `0003_study_and_jobs.sql` | artifacts, flashcards, quizzes, chat, jobs |
 | `0004_search_functions.sql` | dense + lexical + RRF helpers |
 | `0005_rls_and_storage.sql` | RLS policies, grants, storage bucket |
+| `0006_cleanup_legacy.sql` | Drop leftover legacy objects if present |
+| `0007_public_claim_next_job.sql` | Optional public wrapper for job claim |
+| `0008_synopsis_and_reviews.sql` | Document synopsis + SM-2 flashcard reviews |
 
 ## How to apply
 
 ### Option A — Supabase SQL Editor (fastest on empty project)
 
 1. Open Dashboard → SQL → New query
-2. Paste and run each file **in order** `0001` → `0007`
+2. Paste and run each file **in order** `0001` → `0008`
 3. Confirm tables under Table Editor and bucket `documents` under Storage
 
 ### Option B — Supabase MCP / CLI

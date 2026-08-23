@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app.adapters.retrieval.llm_rerank import llm_rerank_chunks
+from app.application.retrieval_policy import merge_scoped_hybrid_results
 from app.ports.llm import LLMPort
 from app.ports.retrieval import (
     HybridRetrievalResult,
@@ -103,6 +105,36 @@ class SupabaseHybridRetrievalAdapter(VectorSearchPort):
         match_count: int = 10,
     ) -> HybridRetrievalResult:
         final_k = match_count or self._final_top_k
+        scoped = filters.resolved_document_ids()
+        if len(scoped) > 1:
+            parts = await asyncio.gather(
+                *[
+                    self.hybrid_search(
+                        query_text=query_text,
+                        query_embedding=query_embedding,
+                        filters=RetrievalFilters(
+                            user_id=filters.user_id,
+                            subject_id=filters.subject_id,
+                            document_id=doc_id,
+                        ),
+                        match_count=match_count,
+                    )
+                    for doc_id in scoped
+                ]
+            )
+            return merge_scoped_hybrid_results(
+                list(parts),
+                final_k=final_k,
+                rrf_k=self._rrf_k,
+            )
+
+        if len(scoped) == 1:
+            filters = RetrievalFilters(
+                user_id=filters.user_id,
+                subject_id=filters.subject_id,
+                document_id=scoped[0],
+            )
+
         dense = await self.dense_search(
             query_embedding=query_embedding,
             filters=filters,

@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     enable_rate_limit: bool = Field(default=True, alias="ENABLE_RATE_LIMIT")
     rate_limit_requests_per_minute: int = Field(default=120, alias="RATE_LIMIT_REQUESTS_PER_MINUTE")
 
+    # Feature flags (TFM extras)
+    enable_hierarchical_rag: bool = Field(default=True, alias="ENABLE_HIERARCHICAL_RAG")
+    enable_agentic_rag: bool = Field(default=False, alias="ENABLE_AGENTIC_RAG")
+    enable_debug_endpoints: bool = Field(default=False, alias="ENABLE_DEBUG_ENDPOINTS")
+
     def cors_origins(self) -> list[str]:
         return [item.strip() for item in self.cors_allow_origins.split(",") if item.strip()]
 

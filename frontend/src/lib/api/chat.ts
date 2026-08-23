@@ -4,7 +4,11 @@ export type CitationDto = {
   index: number;
   chunk_id: string;
   document_id: string;
+  filename?: string | null;
   page_start?: number | null;
+  page_end?: number | null;
+  chapter_name?: string | null;
+  snippet?: string | null;
   score?: number | null;
 };
 
@@ -46,7 +50,9 @@ export async function askChat(
     question: string;
     thread_id?: string;
     document_id?: string;
+    document_ids?: string[];
     save?: boolean;
+    mode?: "standard" | "agentic";
   },
 ) {
   return apiRequest<ChatAskResponse>("/chat/ask", {
@@ -76,7 +82,9 @@ export async function askChatStream(
     question: string;
     thread_id?: string;
     document_id?: string;
+    document_ids?: string[];
     save?: boolean;
+    mode?: "standard" | "agentic";
   },
   handlers: StreamHandlers,
 ) {

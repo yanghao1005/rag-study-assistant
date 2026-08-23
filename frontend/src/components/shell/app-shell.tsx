@@ -2,11 +2,13 @@
 
 import {
   BookOpen,
+  CalendarCheck,
   FileText,
   Layers3,
   LogOut,
   MessageSquareText,
   Plus,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +37,7 @@ const MODES = [
   { slug: "chat", label: "Chat", icon: MessageSquareText },
   { slug: "flashcards", label: "Flashcards", icon: Layers3 },
   { slug: "quiz", label: "Quiz", icon: Sparkles },
+  { slug: "planner", label: "Repaso", icon: CalendarCheck },
 ] as const;
 
 export function AppShell({
@@ -123,6 +126,18 @@ export function AppShell({
         <Separator className="my-3" />
         <div className="flex flex-col gap-1 px-1">
           <p className="truncate px-2 text-xs text-muted-foreground">{userEmail}</p>
+          <Link
+            href="/settings"
+            className={cn(
+              "inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm",
+              pathname.startsWith("/settings")
+                ? "bg-accent font-semibold text-accent-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+            )}
+          >
+            <Settings className="size-4" />
+            Ajustes
+          </Link>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -173,9 +188,7 @@ export function AppShell({
           </header>
         ) : null}
         <main className="flex-1 overflow-auto px-6 py-6">
-          <FadeIn key={pathname} y={10}>
-            {children}
-          </FadeIn>
+          <FadeIn y={10}>{children}</FadeIn>
         </main>
       </div>
     </div>

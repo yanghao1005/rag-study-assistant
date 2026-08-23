@@ -18,9 +18,12 @@ def _use_case(container: ContainerDep) -> ChatUseCase:
     return ChatUseCase(
         subjects=container.subjects,
         chat=container.chat,
+        documents=container.documents,
         retrieval=container.retrieval,
         embeddings=container.embeddings,
         llm=container.llm,
+        enable_hierarchical_rag=container.settings.enable_hierarchical_rag,
+        enable_agentic_rag=container.settings.enable_agentic_rag,
     )
 
 
@@ -36,7 +39,9 @@ async def ask_chat(
         question=body.question,
         thread_id=body.thread_id,
         document_id=body.document_id,
+        document_ids=body.document_ids,
         save=body.save,
+        mode=body.mode,
     )
 
 
@@ -56,7 +61,9 @@ async def ask_chat_stream(
                 question=body.question,
                 thread_id=body.thread_id,
                 document_id=body.document_id,
+                document_ids=body.document_ids,
                 save=body.save,
+                mode=body.mode,
             ):
                 yield sse_event(event)
         except Exception as exc:  # noqa: BLE001

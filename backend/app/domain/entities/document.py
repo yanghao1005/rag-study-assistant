@@ -24,6 +24,7 @@ class Document:
     total_pages: int = 0
     file_size: int = 0
     checksum: str | None = None
+    synopsis: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
     updated_at: datetime | None = None

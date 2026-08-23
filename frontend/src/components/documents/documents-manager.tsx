@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDeleteDocument,
   useJobStatus,
+  useReindexDocument,
   useSubjectDocuments,
   useUploadDocument,
 } from "@/features/documents/use-documents";
@@ -49,29 +50,42 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
   const { data: documents, isLoading, isError, error, refetch } = useSubjectDocuments(subjectId);
   const upload = useUploadDocument(subjectId);
   const remove = useDeleteDocument(subjectId);
+  const reindex = useReindexDocument(subjectId);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const job = useJobStatus(activeJobId, Boolean(activeJobId));
 
-  function onFiles(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) {
+  async function onFiles(files: FileList | null) {
+    if (!files?.length) {
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
+    const pdfs = [...files].filter((file) => file.name.toLowerCase().endsWith(".pdf"));
+    if (pdfs.length === 0) {
       toast.error("Solo se admiten PDF por ahora.");
       return;
     }
+    if (pdfs.length < files.length) {
+      toast.error("Se ignoraron archivos que no son PDF.");
+    }
     startTransition(async () => {
-      try {
-        const result = await upload.mutateAsync(file);
-        setActiveJobId(result.job_id);
-        toast.success(`Subido: ${result.filename}`);
-        await refetch();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error al subir");
+      const results = await Promise.allSettled(pdfs.map((file) => upload.mutateAsync(file)));
+      const ok = results.filter((item) => item.status === "fulfilled");
+      const fail = results.length - ok.length;
+      if (ok.length === 1 && ok[0].status === "fulfilled") {
+        setActiveJobId(ok[0].value.job_id);
+        toast.success(`Subido: ${ok[0].value.filename}`);
+      } else if (ok.length > 1) {
+        const last = ok[ok.length - 1];
+        if (last.status === "fulfilled") {
+          setActiveJobId(last.value.job_id);
+        }
+        toast.success(`${ok.length} PDFs subidos`);
       }
+      if (fail > 0) {
+        toast.error(`${fail} archivo${fail === 1 ? "" : "s"} no se pudieron subir`);
+      }
+      await refetch();
     });
   }
 
@@ -88,20 +102,22 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            onFiles(e.dataTransfer.files);
+            void onFiles(e.dataTransfer.files);
           }}
         >
-          <p className="font-display text-xl font-semibold">Sube un PDF</p>
+          <p className="font-display text-xl font-semibold">Sube PDFs</p>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            Arrastra el archivo aquí o elige desde tu equipo. Lo indexamos para chat y práctica.
+            Arrastra uno o varios archivos aquí o elige desde tu equipo. Los indexamos para chat y
+            práctica.
           </p>
           <input
             ref={inputRef}
             type="file"
             accept="application/pdf,.pdf"
+            multiple
             className="hidden"
             onChange={(e) => {
-              onFiles(e.target.files);
+              void onFiles(e.target.files);
               e.target.value = "";
             }}
           />
@@ -110,7 +126,7 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
             disabled={pending || upload.isPending}
             onClick={() => inputRef.current?.click()}
           >
-            {pending || upload.isPending ? "Subiendo…" : "Elegir archivo"}
+            {pending || upload.isPending ? "Subiendo…" : "Elegir archivos"}
           </Button>
           {progress !== null ? (
             <div className="mx-auto mt-6 max-w-sm">
@@ -158,6 +174,29 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <StatusSignal status={doc.status} />
+                  {doc.status === "error" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pending || reindex.isPending}
+                      onClick={() => {
+                        startTransition(async () => {
+                          try {
+                            const result = await reindex.mutateAsync(doc.id);
+                            setActiveJobId(result.job_id);
+                            toast.success("Reintentando indexación");
+                            await refetch();
+                          } catch (err) {
+                            toast.error(
+                              err instanceof Error ? err.message : "No se pudo reintentar",
+                            );
+                          }
+                        });
+                      }}
+                    >
+                      Reintentar
+                    </Button>
+                  ) : null}
                   <Button
                     variant="ghost"
                     size="sm"

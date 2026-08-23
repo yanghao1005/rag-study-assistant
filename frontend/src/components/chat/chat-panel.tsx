@@ -1,22 +1,30 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { FadeIn, motion } from "@/components/motion/fade-in";
 import { EmptyState } from "@/components/shared/empty-state";
+import { DocumentScopePicker } from "@/components/documents/document-scope-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSessionStore } from "@/features/auth/session-store";
+import { useProfile } from "@/features/profile/use-profile";
 import {
   streamAsk,
   useChatMessages,
   useChatThreads,
   useInvalidateChatHistory,
 } from "@/features/chat/use-chat";
+import { CitationList } from "@/components/chat/citation-list";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useSubjectDocuments } from "@/features/documents/use-documents";
+import {
+  documentScopePayload,
+  useSelectedDocumentIds,
+} from "@/features/documents/use-document-scope";
 import type { CitationDto } from "@/lib/api/chat";
 import { cn } from "@/lib/utils";
 
@@ -29,25 +37,28 @@ type Message = {
 
 export function ChatPanel({ subjectId }: { subjectId: string }) {
   const token = useSessionStore((s) => s.token);
+  const { data: profile } = useProfile();
   const { data: documents, isLoading } = useSubjectDocuments(subjectId);
   const { data: threads, isLoading: threadsLoading } = useChatThreads(subjectId);
   const invalidateHistory = useInvalidateChatHistory();
+  const selectedDocumentIds = useSelectedDocumentIds(subjectId);
 
   const [question, setQuestion] = useState("");
   const [threadId, setThreadId] = useState<string | undefined>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const skipHydrationRef = useRef(false);
 
   const { data: loadedMessages } = useChatMessages(threadId);
 
   const readyDocs = documents?.filter((d) => d.status === "ready") ?? [];
 
   useEffect(() => {
-    if (!threadId || !loadedMessages) {
+    if (!threadId || !loadedMessages || streaming) {
       return;
     }
-    if (streaming) {
+    if (skipHydrationRef.current) {
+      skipHydrationRef.current = false;
       return;
     }
     setMessages(
@@ -63,14 +74,20 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
   }, [loadedMessages, threadId, streaming]);
 
   function startNewThread() {
+    skipHydrationRef.current = false;
     setThreadId(undefined);
     setMessages([]);
   }
 
-  function submit(event: React.FormEvent) {
+  function openThread(id: string) {
+    skipHydrationRef.current = false;
+    setThreadId(id);
+  }
+
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     const q = question.trim();
-    if (!q || !token) {
+    if (!q || !token || streaming) {
       return;
     }
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: q };
@@ -83,60 +100,66 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
     setQuestion("");
     setStreaming(true);
 
-    startTransition(async () => {
-      let citations: CitationDto[] = [];
-      try {
-        await streamAsk(
-          token,
-          { subject_id: subjectId, question: q, thread_id: threadId },
-          {
-            onMeta: (meta) => {
-              citations = meta.citations;
-              if (meta.thread_id) {
-                setThreadId(meta.thread_id);
-              }
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, citations: meta.citations } : m,
-                ),
-              );
-            },
-            onToken: (tokenText) => {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: m.content + tokenText } : m,
-                ),
-              );
-            },
-            onDone: (payload) => {
-              if (payload.thread_id) {
-                setThreadId(payload.thread_id);
-              }
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        content: payload.answer || m.content,
-                        citations: citations.length ? citations : m.citations,
-                      }
-                    : m,
-                ),
-              );
-              void invalidateHistory(subjectId);
-            },
-            onError: (message) => {
-              toast.error(message);
-            },
+    let citations: CitationDto[] = [];
+    try {
+      await streamAsk(
+        token,
+        {
+          subject_id: subjectId,
+          question: q,
+          thread_id: threadId,
+          mode: profile?.preferences?.agentic_rag === true ? "agentic" : "standard",
+          ...documentScopePayload(selectedDocumentIds),
+        },
+        {
+          onMeta: (meta) => {
+            citations = meta.citations;
+            if (meta.thread_id) {
+              skipHydrationRef.current = true;
+              setThreadId(meta.thread_id);
+            }
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, citations: meta.citations } : m,
+              ),
+            );
           },
-        );
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "No se pudo responder");
-        setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
-      } finally {
-        setStreaming(false);
-      }
-    });
+          onToken: (tokenText) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: m.content + tokenText } : m,
+              ),
+            );
+          },
+          onDone: (payload) => {
+            if (payload.thread_id) {
+              skipHydrationRef.current = true;
+              setThreadId(payload.thread_id);
+            }
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: payload.answer || m.content,
+                      citations: citations.length ? citations : m.citations,
+                    }
+                  : m,
+              ),
+            );
+            void invalidateHistory(subjectId, payload.thread_id);
+          },
+          onError: (message) => {
+            toast.error(message);
+          },
+        },
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo responder");
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
+    } finally {
+      setStreaming(false);
+    }
   }
 
   if (isLoading) {
@@ -176,7 +199,7 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
                       ? "bg-accent font-medium text-accent-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
-                  onClick={() => setThreadId(thread.id)}
+                  onClick={() => openThread(thread.id)}
                 >
                   <span className="line-clamp-2">{thread.title || "Chat"}</span>
                 </button>
@@ -190,11 +213,14 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <div className="mb-3">
+          <DocumentScopePicker subjectId={subjectId} documents={readyDocs} />
+        </div>
         <div className="flex-1 space-y-6 overflow-y-auto pr-1">
           {messages.length === 0 ? (
             <FadeIn y={6}>
               <p className="text-sm text-muted-foreground">
-                Pregunta sobre tus apuntes. La respuesta aparece en streaming y cita el material.
+                Pregunta sobre tus apuntes. Si no eliges un PDF, busca en toda la asignatura.
               </p>
             </FadeIn>
           ) : null}
@@ -217,41 +243,32 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
                 transition={{ duration: 0.3 }}
                 className="max-w-2xl space-y-3"
               >
-                <p className="text-[17px] leading-relaxed whitespace-pre-wrap">
-                  {msg.content || (streaming ? "…" : "")}
-                </p>
+                {msg.content ? (
+                  <MarkdownContent>{msg.content}</MarkdownContent>
+                ) : (
+                  <p className="text-[17px] leading-relaxed">{streaming ? "…" : ""}</p>
+                )}
                 {msg.citations && msg.citations.length > 0 && !streaming ? (
-                  <ol className="space-y-1 border-l-2 border-primary/40 pl-4 text-sm text-muted-foreground">
-                    {msg.citations.map((c) => (
-                      <li key={`${c.chunk_id}-${c.index}`}>
-                        [{c.index}] documento {c.document_id.slice(0, 8)}
-                        {c.page_start != null ? ` · pág. ${c.page_start}` : null}
-                      </li>
-                    ))}
-                  </ol>
+                  <CitationList citations={msg.citations} />
                 ) : null}
               </motion.div>
             ),
           )}
-          {pending || streaming ? (
+          {streaming ? (
             <p className="animate-pulse-soft text-sm text-muted-foreground" aria-live="polite">
               Escribiendo…
             </p>
           ) : null}
         </div>
 
-        <form onSubmit={submit} className="mt-4 flex gap-2 border-t border-border pt-4">
+        <form onSubmit={(event) => void submit(event)} className="mt-4 flex gap-2 border-t border-border pt-4">
           <Input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Pregunta sobre esta asignatura…"
-            disabled={pending || streaming}
+            disabled={streaming}
           />
-          <Button
-            type="submit"
-            className="hover-lift"
-            disabled={pending || streaming || !question.trim()}
-          >
+          <Button type="submit" className="hover-lift" disabled={streaming || !question.trim()}>
             Enviar
           </Button>
         </form>

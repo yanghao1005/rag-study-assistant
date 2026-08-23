@@ -2,16 +2,31 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
 
+from app.application.retrieval_policy import (
+    build_index_context,
+    classify_query,
+    documents_for_chapter,
+    enrich_citations,
+    format_context_blocks,
+    is_broad_query,
+    maybe_expand_agentic,
+    merge_with_opening_chunks,
+    search_query_for_intent,
+    sort_course_documents,
+    system_prompt_for_intent,
+)
 from app.core.errors import AppError
 from app.domain.entities.chat import ChatMessage, ChatThread
+from app.domain.entities.document import DocumentChunk
 from app.domain.entities.enums import ChatRole
 from app.ports.llm import ChatCompletionMessage, EmbeddingPort, LLMPort
-from app.ports.repositories import ChatRepositoryPort, SubjectRepositoryPort
+from app.ports.repositories import ChatRepositoryPort, DocumentRepositoryPort, SubjectRepositoryPort
 from app.ports.retrieval import RetrievalFilters, VectorSearchPort
 
 
@@ -21,15 +36,21 @@ class ChatUseCase:
         *,
         subjects: SubjectRepositoryPort,
         chat: ChatRepositoryPort,
+        documents: DocumentRepositoryPort,
         retrieval: VectorSearchPort,
         embeddings: EmbeddingPort,
         llm: LLMPort,
+        enable_hierarchical_rag: bool = True,
+        enable_agentic_rag: bool = False,
     ) -> None:
         self._subjects = subjects
         self._chat = chat
+        self._documents = documents
         self._retrieval = retrieval
         self._embeddings = embeddings
         self._llm = llm
+        self._enable_hierarchical_rag = enable_hierarchical_rag
+        self._enable_agentic_rag = enable_agentic_rag
 
     async def _prepare(
         self,
@@ -39,7 +60,9 @@ class ChatUseCase:
         question: str,
         thread_id: str | None,
         document_id: str | None,
+        document_ids: list[str] | None,
         save: bool,
+        mode: str = "standard",
     ) -> tuple[ChatThread | None, list[dict[str, object]], list[ChatCompletionMessage]]:
         subject = await self._subjects.get(user_id=user_id, subject_id=subject_id)
         if subject is None:
@@ -64,44 +87,115 @@ class ChatUseCase:
                 )
             )
 
-        query_embedding = (await self._embeddings.embed([question]))[0]
+        docs = await self._documents.list_for_subject(user_id=user_id, subject_id=subject_id)
+        intent = classify_query(question)
+        filters = RetrievalFilters(
+            user_id=user_id,
+            subject_id=subject_id,
+            document_id=document_id,
+            document_ids=tuple(document_ids or ()),
+        )
+        scoped = set(filters.resolved_document_ids())
+        if scoped:
+            docs = [item for item in docs if item.id in scoped]
+        elif (
+            intent.kind == "chapter"
+            and intent.chapter_number is not None
+            and not scoped
+        ):
+            numbered = documents_for_chapter(docs, intent.chapter_number)
+            if numbered:
+                docs = numbered
+                filters = RetrievalFilters(
+                    user_id=user_id,
+                    subject_id=subject_id,
+                    document_ids=tuple(item.id for item in numbered),
+                )
+        docs = sort_course_documents(docs)
+
+        search_text = search_query_for_intent(
+            question, subject_name=subject.name, intent=intent
+        )
+        query_embedding = (await self._embeddings.embed([search_text]))[0]
         result = await self._retrieval.hybrid_search(
-            query_text=question,
+            query_text=search_text,
             query_embedding=query_embedding,
-            filters=RetrievalFilters(
+            filters=filters,
+        )
+        agentic_used = self._enable_agentic_rag and mode == "agentic"
+        if agentic_used and intent.kind == "factual":
+            result = await maybe_expand_agentic(
+                question=question,
+                first=result,
+                llm=self._llm,
+                embeddings=self._embeddings,
+                retrieval=self._retrieval,
+                filters=filters,
+            )
+        if intent.kind in {"summary", "chapter"}:
+            openings = await self._opening_chunks(
+                user_id=user_id,
+                subject_id=subject_id,
+                document_ids=[item.id for item in docs],
+                per_document=2 if intent.kind == "summary" else 4,
+            )
+            result = merge_with_opening_chunks(
+                result,
+                openings,
+                per_document=2 if intent.kind == "summary" else 6,
+                limit=12 if intent.kind == "summary" else 8,
+            )
+
+        citations = enrich_citations(result.chunks, docs)
+        context = format_context_blocks(result.chunks, docs)
+        index_block = ""
+        if self._enable_hierarchical_rag:
+            retrieved_ids = {chunk.document_id for chunk in result.chunks}
+            index_block = build_index_context(
+                docs,
+                retrieved_ids=retrieved_ids,
+                include_all=(
+                    intent.kind == "summary"
+                    or is_broad_query(question)
+                    or not retrieved_ids
+                ),
+            )
+        system = system_prompt_for_intent(intent)
+        user_content = (
+            f"{index_block}\n\nContext:\n{context}\n\nQuestion: {question}"
+            if index_block
+            else f"Context:\n{context}\n\nQuestion: {question}"
+        )
+        messages = [
+            ChatCompletionMessage(role="system", content=system),
+            ChatCompletionMessage(role="user", content=user_content),
+        ]
+        return thread, citations, messages
+
+    async def _opening_chunks(
+        self,
+        *,
+        user_id: str,
+        subject_id: str,
+        document_ids: list[str],
+        per_document: int,
+    ) -> list[DocumentChunk]:
+        if not document_ids:
+            return []
+
+        async def load(document_id: str) -> list[DocumentChunk]:
+            return await self._documents.list_chunks(
                 user_id=user_id,
                 subject_id=subject_id,
                 document_id=document_id,
-            ),
-        )
-        context_blocks: list[str] = []
-        citations: list[dict[str, object]] = []
-        for index, chunk in enumerate(result.chunks, start=1):
-            context_blocks.append(f"[{index}] {chunk.content}")
-            citations.append(
-                {
-                    "index": index,
-                    "chunk_id": chunk.id,
-                    "document_id": chunk.document_id,
-                    "page_start": chunk.page_start,
-                    "score": chunk.score,
-                }
+                limit=per_document,
             )
-        context = "\n\n".join(context_blocks) if context_blocks else "No retrieved context."
-        messages = [
-            ChatCompletionMessage(
-                role="system",
-                content=(
-                    "You are a study assistant. Answer using only the provided context. "
-                    "If the context is insufficient, say so. Cite sources as [n]."
-                ),
-            ),
-            ChatCompletionMessage(
-                role="user",
-                content=f"Context:\n{context}\n\nQuestion: {question}",
-            ),
-        ]
-        return thread, citations, messages
+
+        parts = await asyncio.gather(*[load(doc_id) for doc_id in document_ids])
+        chunks = []
+        for part in parts:
+            chunks.extend(part)
+        return chunks
 
     async def ask(
         self,
@@ -111,7 +205,9 @@ class ChatUseCase:
         question: str,
         thread_id: str | None = None,
         document_id: str | None = None,
+        document_ids: list[str] | None = None,
         save: bool = True,
+        mode: str = "standard",
     ) -> dict[str, object]:
         thread, citations, messages = await self._prepare(
             user_id=user_id,
@@ -119,7 +215,9 @@ class ChatUseCase:
             question=question,
             thread_id=thread_id,
             document_id=document_id,
+            document_ids=document_ids,
             save=save,
+            mode=mode,
         )
         completion = await self._llm.complete(messages=messages)
 
@@ -150,7 +248,9 @@ class ChatUseCase:
         question: str,
         thread_id: str | None = None,
         document_id: str | None = None,
+        document_ids: list[str] | None = None,
         save: bool = True,
+        mode: str = "standard",
     ) -> AsyncIterator[dict[str, Any]]:
         thread, citations, messages = await self._prepare(
             user_id=user_id,
@@ -158,7 +258,9 @@ class ChatUseCase:
             question=question,
             thread_id=thread_id,
             document_id=document_id,
+            document_ids=document_ids,
             save=save,
+            mode=mode,
         )
         yield {
             "type": "meta",
@@ -233,9 +335,7 @@ class ChatUseCase:
             for t in threads
         ]
 
-    async def list_messages(
-        self, *, user_id: str, thread_id: str
-    ) -> list[dict[str, object]]:
+    async def list_messages(self, *, user_id: str, thread_id: str) -> list[dict[str, object]]:
         thread = await self._chat.get_thread(user_id=user_id, thread_id=thread_id)
         if thread is None:
             raise AppError(

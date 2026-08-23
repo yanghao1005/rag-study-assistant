@@ -50,22 +50,6 @@ export function LoginForm() {
     });
   }
 
-  function signInWithGoogle() {
-    startTransition(async () => {
-      const supabase = createClient();
-      const origin = window.location.origin;
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        },
-      });
-      if (error) {
-        toast.error(error.message);
-      }
-    });
-  }
-
   return (
     <form onSubmit={submit} className="flex w-full flex-col gap-5">
       <div
@@ -102,23 +86,6 @@ export function LoginForm() {
             {label}
           </button>
         ))}
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        size="lg"
-        className="hover-lift h-11 w-full cursor-pointer"
-        disabled={pending}
-        onClick={signInWithGoogle}
-      >
-        Continuar con Google
-      </Button>
-
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-border" />
-        o con email
-        <span className="h-px flex-1 bg-border" />
       </div>
 
       <div className="flex flex-col gap-2">

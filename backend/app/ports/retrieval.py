@@ -28,6 +28,16 @@ class RetrievalFilters:
     user_id: str
     subject_id: str | None = None
     document_id: str | None = None
+    document_ids: tuple[str, ...] = ()
+
+    def resolved_document_ids(self) -> tuple[str, ...]:
+        ids: list[str] = []
+        for item in self.document_ids:
+            if item and item not in ids:
+                ids.append(item)
+        if self.document_id and self.document_id not in ids:
+            ids.append(self.document_id)
+        return tuple(ids)
 
 
 @dataclass(frozen=True, slots=True)

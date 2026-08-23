@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -13,7 +13,8 @@ from app.domain.entities.enums import (
     QuestionType,
     SourceScope,
 )
-from app.domain.entities.study import Flashcard, QuizQuestion, StudyArtifact
+from app.domain.entities.review import FlashcardReview
+from app.domain.entities.study import DueFlashcard, Flashcard, QuizQuestion, StudyArtifact
 from app.ports.repositories import StudyRepositoryPort
 from supabase import Client
 
@@ -39,6 +40,22 @@ def _artifact_from_row(row: dict[str, Any]) -> StudyArtifact:
         source_ref=row.get("source_ref"),
         content_json=row.get("content_json") or {},
         metadata=row.get("metadata") or {},
+        created_at=_parse_dt(row.get("created_at")),
+        updated_at=_parse_dt(row.get("updated_at")),
+    )
+
+
+def _review_from_row(row: dict[str, Any]) -> FlashcardReview:
+    return FlashcardReview(
+        id=str(row["id"]),
+        user_id=str(row["user_id"]),
+        flashcard_id=str(row["flashcard_id"]),
+        ease=float(row.get("ease") or 2.5),
+        interval_days=int(row.get("interval_days") or 0),
+        repetitions=int(row.get("repetitions") or 0),
+        next_review_at=_parse_dt(row.get("next_review_at")),
+        last_reviewed_at=_parse_dt(row.get("last_reviewed_at")),
+        last_quality=row.get("last_quality"),
         created_at=_parse_dt(row.get("created_at")),
         updated_at=_parse_dt(row.get("updated_at")),
     )
@@ -208,3 +225,63 @@ class SupabaseStudyRepository(StudyRepositoryPort):
                 )
             )
         return items
+
+    async def list_due_flashcards(
+        self, *, user_id: str, subject_id: str, limit: int = 20
+    ) -> list[DueFlashcard]:
+        artifacts = await self.list_artifacts(
+            user_id=user_id, subject_id=subject_id, artifact_type="flashcard_deck"
+        )
+        due: list[DueFlashcard] = []
+        now = datetime.now(UTC)
+        for artifact in artifacts:
+            cards = await self.list_flashcards(user_id=user_id, artifact_id=artifact.id)
+            for card in cards:
+                review = await self.get_review(user_id=user_id, flashcard_id=card.id)
+                if review is not None and review.next_review_at and review.next_review_at > now:
+                    continue
+                due.append(
+                    DueFlashcard(
+                        card=card,
+                        subject_id=subject_id,
+                        artifact_title=artifact.title,
+                        review=review,
+                    )
+                )
+                if len(due) >= limit:
+                    return due
+        return due
+
+    async def get_review(self, *, user_id: str, flashcard_id: str) -> FlashcardReview | None:
+        response = (
+            self._client.table("flashcard_reviews")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("flashcard_id", flashcard_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return _review_from_row(response.data[0])
+
+    async def upsert_review(self, review: FlashcardReview) -> FlashcardReview:
+        payload = {
+            "id": review.id or str(uuid4()),
+            "user_id": review.user_id,
+            "flashcard_id": review.flashcard_id,
+            "ease": review.ease,
+            "interval_days": review.interval_days,
+            "repetitions": review.repetitions,
+            "next_review_at": review.next_review_at.isoformat() if review.next_review_at else None,
+            "last_reviewed_at": (
+                review.last_reviewed_at.isoformat() if review.last_reviewed_at else None
+            ),
+            "last_quality": review.last_quality,
+        }
+        response = (
+            self._client.table("flashcard_reviews")
+            .upsert(payload, on_conflict="user_id,flashcard_id")
+            .execute()
+        )
+        return _review_from_row(response.data[0])

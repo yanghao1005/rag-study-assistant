@@ -12,7 +12,9 @@ from app.core.config import Settings
 from app.domain.entities.chat import ChatMessage, ChatThread
 from app.domain.entities.document import Document, DocumentChunk
 from app.domain.entities.job import Job, PipelineStageRun
-from app.domain.entities.study import Flashcard, QuizQuestion, StudyArtifact
+from app.domain.entities.profile import Profile
+from app.domain.entities.review import FlashcardReview
+from app.domain.entities.study import DueFlashcard, Flashcard, QuizQuestion, StudyArtifact
 from app.domain.entities.subject import Subject
 from app.ports.auth import AuthenticatedUser, AuthPort
 from app.ports.llm import (
@@ -27,6 +29,7 @@ from app.ports.repositories import (
     ChatRepositoryPort,
     DocumentRepositoryPort,
     JobRepositoryPort,
+    ProfileRepositoryPort,
     StudyRepositoryPort,
     SubjectRepositoryPort,
 )
@@ -170,6 +173,18 @@ class FakeDocuments(DocumentRepositoryPort):
                 values.append(chunk)
         return values[:limit]
 
+    async def get_chunk(
+        self,
+        *,
+        user_id: str,
+        document_id: str,
+        chunk_id: str,
+    ) -> DocumentChunk | None:
+        for chunk in self.chunks.get(document_id, []):
+            if chunk.user_id == user_id and chunk.id == chunk_id:
+                return chunk
+        return None
+
 
 class FakeJobs(JobRepositoryPort):
     def __init__(self) -> None:
@@ -213,6 +228,7 @@ class FakeStudy(StudyRepositoryPort):
         self.artifacts: dict[str, StudyArtifact] = {}
         self.cards: dict[str, list[Flashcard]] = {}
         self.questions: dict[str, list[QuizQuestion]] = {}
+        self.reviews: dict[str, FlashcardReview] = {}
 
     async def create_artifact(self, artifact: StudyArtifact) -> StudyArtifact:
         self.artifacts[artifact.id] = artifact
@@ -258,6 +274,39 @@ class FakeStudy(StudyRepositoryPort):
 
     async def list_quiz_questions(self, *, user_id: str, artifact_id: str) -> list[QuizQuestion]:
         return [q for q in self.questions.get(artifact_id, []) if q.user_id == user_id]
+
+    async def list_due_flashcards(
+        self, *, user_id: str, subject_id: str, limit: int = 20
+    ) -> list[DueFlashcard]:
+        due: list[DueFlashcard] = []
+        now = datetime.now(UTC)
+        for artifact in self.artifacts.values():
+            if artifact.user_id != user_id or artifact.subject_id != subject_id:
+                continue
+            if artifact.artifact_type.value != "flashcard_deck":
+                continue
+            for card in self.cards.get(artifact.id, []):
+                review = self.reviews.get(f"{user_id}:{card.id}")
+                if review is not None and review.next_review_at and review.next_review_at > now:
+                    continue
+                due.append(
+                    DueFlashcard(
+                        card=card,
+                        subject_id=subject_id,
+                        artifact_title=artifact.title,
+                        review=review,
+                    )
+                )
+                if len(due) >= limit:
+                    return due
+        return due
+
+    async def get_review(self, *, user_id: str, flashcard_id: str) -> FlashcardReview | None:
+        return self.reviews.get(f"{user_id}:{flashcard_id}")
+
+    async def upsert_review(self, review: FlashcardReview) -> FlashcardReview:
+        self.reviews[f"{review.user_id}:{review.flashcard_id}"] = review
+        return review
 
 
 class FakeChat(ChatRepositoryPort):
@@ -325,6 +374,8 @@ class FakeLLM(LLMPort):
             }
         elif schema_name == "rerank":
             data = {"order": [1]}
+        elif schema_name == "agentic_plan":
+            data = {"need_more": False, "rewritten_query": None, "reason": "sufficient"}
         else:
             data = {
                 "questions": [
@@ -368,6 +419,9 @@ class FakeRetrieval(VectorSearchPort):
         filters: RetrievalFilters,
         match_count: int = 10,
     ) -> HybridRetrievalResult:
+        scoped = filters.resolved_document_ids()
+        if scoped and "doc-1" not in scoped:
+            return HybridRetrievalResult(chunks=[], dense_ids=[], lexical_ids=[])
         chunk = RetrievedChunk(
             id="chunk-1",
             document_id="doc-1",
@@ -389,6 +443,18 @@ class FakeParser(DocumentParserPort):
 class FakeChunker(ChunkerPort):
     def chunk(self, document: ParsedDocument) -> list[TextChunk]:
         return [TextChunk(index=0, content=document.full_text or "hello")]
+
+
+class FakeProfiles(ProfileRepositoryPort):
+    def __init__(self) -> None:
+        self.items: dict[str, Profile] = {}
+
+    async def get(self, user_id: str) -> Profile | None:
+        return self.items.get(user_id)
+
+    async def upsert(self, profile: Profile) -> Profile:
+        self.items[profile.id] = profile
+        return profile
 
 
 def build_fake_container() -> AppContainer:
@@ -413,6 +479,8 @@ def build_fake_container() -> AppContainer:
         parser=parser,
         chunker=chunker,
         embeddings=embeddings,
+        llm=FakeLLM(),
+        enable_hierarchical_rag=True,
     )
     return AppContainer(
         settings=settings,
@@ -422,6 +490,7 @@ def build_fake_container() -> AppContainer:
         parser=parser,
         chunker=chunker,
         storage=storage,
+        profiles=FakeProfiles(),
         subjects=FakeSubjects(),
         documents=documents,
         jobs=jobs,

@@ -39,6 +39,9 @@ python -m ruff check app tests
 python -m mypy app
 # opcional (credenciales reales):
 # $env:RUN_REAL_INTEGRATION=1; python -m pytest tests/integration -v
+# pipeline debug:
+# python -m app.entrypoints.cli.pipeline --user-id <uid> --document-id <id> --from-stage parse --to-stage store
+# python -m app.entrypoints.cli.benchmark --user-id <uid> --subject-id <sid> --query "ATP"
 ```
 
 ## Frontend
@@ -54,27 +57,52 @@ Build:
 
 ```bash
 pnpm exec tsc --noEmit
+pnpm test
 pnpm build
 ```
 
+Smoke E2E (Playwright, after `pnpm build`):
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
 Auth notes:
-- Email/password + Google OAuth (`Continuar con Google`) — enable Google in Supabase Auth providers.
+- Email/password on `/login` (entrar / crear cuenta).
 - Password reset: `/forgot-password` → email link → `/reset-password`.
 - Add redirect URLs in Supabase: `http://localhost:3000/auth/callback` (and prod URL).
 
-Optional retrieval rerank (backend `.env`):
+Optional retrieval extras (backend `.env`):
 
 ```bash
 RERANK_PROVIDER=llm
+ENABLE_HIERARCHICAL_RAG=true
+ENABLE_AGENTIC_RAG=true
+ENABLE_DEBUG_ENDPOINTS=true
 ```
+
+## Docker
+
+Desde la raíz del repo (con `backend/.env` relleno y variables `NEXT_PUBLIC_*` en el entorno):
+
+```bash
+docker compose up --build
+```
+
+- API: http://localhost:8000/api/docs
+- App: http://localhost:3000
+
+Aplica las migraciones `0001`–`0008` en Supabase antes de usarlo.
 
 ## Flujo mínimo
 
 1. Crear cuenta en `/login`
 2. Crear asignatura
 3. Subir PDF → esperar estado **Listo**
-4. Chat / Flashcards / Quiz
+4. Chat / Flashcards / Quiz / Repaso
+5. Ajustes en `/settings` (nombre, RAG agentic)
 
 ## Rama de despliegue
 
-La rama de producción / entornos reales es **`main`**.
+La rama de producción / entornos reales es **`main`**. La memoria LaTeX vive en la rama `docs/tfm-latex` (`docs/tfm/`), no en `main`.

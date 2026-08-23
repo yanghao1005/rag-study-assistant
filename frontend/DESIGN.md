@@ -208,6 +208,12 @@ Build with shadcn **New York** + these product patterns:
 - [x] `/design/wireframes` mockups
 - [x] Phase 6: auth + shell + subjects CRUD UI
 - [x] Phase 7: documents upload, chat, flashcards, quiz
-- [ ] Phase 8: polish, mypy, full smoke E2E
+- [x] Phase 8: polish, mypy, full smoke E2E (Playwright + CI ruff/mypy/vitest)
+- [x] Citas clicables con nombre de PDF
+- [x] Reintentar ingestión
+- [x] Ajustes / perfil
+- [x] Quiz Enter confirma
+- [x] Docker Compose del stack nuevo
+- [x] RAG jerárquico, pipeline debug, agentic (flag), benchmarks, planner
 
 Any new UI PR should pass the brand test, cards policy, and one-job-per-screen rule before merge.

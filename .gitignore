@@ -87,4 +87,24 @@ Desktop.ini
 uploads/
 debug_artifacts/
 benchmark_reports/
-*.pem
+test-results/
+playwright-report/
+blob-report/
+
+# LaTeX (aux if compiled next to sources; PDF generated in docs/tfm/build/)
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.nav
+*.snm
+*.vrb

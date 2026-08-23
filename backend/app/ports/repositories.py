@@ -8,7 +8,8 @@ from app.domain.entities.chat import ChatMessage, ChatThread
 from app.domain.entities.document import Document, DocumentChunk
 from app.domain.entities.job import Job, PipelineStageRun
 from app.domain.entities.profile import Profile
-from app.domain.entities.study import Flashcard, QuizQuestion, StudyArtifact
+from app.domain.entities.review import FlashcardReview
+from app.domain.entities.study import DueFlashcard, Flashcard, QuizQuestion, StudyArtifact
 from app.domain.entities.subject import Subject
 
 
@@ -73,6 +74,15 @@ class DocumentRepositoryPort(ABC):
         limit: int = 100,
     ) -> list[DocumentChunk]: ...
 
+    @abstractmethod
+    async def get_chunk(
+        self,
+        *,
+        user_id: str,
+        document_id: str,
+        chunk_id: str,
+    ) -> DocumentChunk | None: ...
+
 
 class StudyRepositoryPort(ABC):
     @abstractmethod
@@ -106,6 +116,17 @@ class StudyRepositoryPort(ABC):
     async def list_quiz_questions(
         self, *, user_id: str, artifact_id: str
     ) -> list[QuizQuestion]: ...
+
+    @abstractmethod
+    async def list_due_flashcards(
+        self, *, user_id: str, subject_id: str, limit: int = 20
+    ) -> list[DueFlashcard]: ...
+
+    @abstractmethod
+    async def get_review(self, *, user_id: str, flashcard_id: str) -> FlashcardReview | None: ...
+
+    @abstractmethod
+    async def upsert_review(self, review: FlashcardReview) -> FlashcardReview: ...
 
 
 class ChatRepositoryPort(ABC):

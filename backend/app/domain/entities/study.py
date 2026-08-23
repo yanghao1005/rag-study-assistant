@@ -13,6 +13,7 @@ from app.domain.entities.enums import (
     QuestionType,
     SourceScope,
 )
+from app.domain.entities.review import FlashcardReview
 from app.domain.exceptions import ValidationError
 
 
@@ -79,3 +80,11 @@ class QuizQuestion:
             raise ValidationError("Quiz question text is required")
         if self.correct_option_index is None and not self.correct_answer:
             raise ValidationError("Quiz question must have a correct answer")
+
+
+@dataclass(slots=True)
+class DueFlashcard:
+    card: Flashcard
+    subject_id: str
+    artifact_title: str
+    review: FlashcardReview | None = None

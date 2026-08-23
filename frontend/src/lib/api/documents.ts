@@ -36,6 +36,13 @@ export async function deleteDocument(token: string, documentId: string) {
   });
 }
 
+export async function reindexDocument(token: string, documentId: string) {
+  return apiRequest<UploadDocumentResponse>(`/documents/${documentId}/reindex`, {
+    method: "POST",
+    token,
+  });
+}
+
 export async function uploadDocument(token: string, subjectId: string, file: File) {
   const form = new FormData();
   form.append("subject_id", subjectId);

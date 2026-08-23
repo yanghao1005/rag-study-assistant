@@ -103,6 +103,68 @@ async def upload_document(
     }
 
 
+@router.post("/{document_id}/reindex", status_code=201)
+async def reindex_document(
+    document_id: str,
+    user: CurrentUserDep,
+    container: ContainerDep,
+) -> dict[str, object]:
+    document = await container.documents.get(user_id=user.id, document_id=document_id)
+    if document is None:
+        raise AppError(status_code=404, error="document_not_found", message="Document not found.")
+    if document.status == DocumentStatus.PROCESSING:
+        raise AppError(
+            status_code=409,
+            error="already_processing",
+            message="El documento ya se está indexando.",
+        )
+    document.status = DocumentStatus.QUEUED
+    document.error_message = None
+    await container.documents.update(document)
+    job = await container.jobs.create(
+        Job(
+            id=str(uuid4()),
+            user_id=user.id,
+            job_type=JobType.REINDEX_DOCUMENT,
+            status=JobStatus.QUEUED,
+            subject_id=document.subject_id,
+            document_id=document.id,
+            payload={"filename": document.filename, "retry": True},
+        )
+    )
+    return {
+        "document_id": document.id,
+        "job_id": job.id,
+        "status": document.status.value,
+        "filename": document.filename,
+    }
+
+
+@router.get("/{document_id}/chunks/{chunk_id}")
+async def get_chunk(
+    document_id: str,
+    chunk_id: str,
+    user: CurrentUserDep,
+    container: ContainerDep,
+) -> dict[str, object]:
+    chunk = await container.documents.get_chunk(
+        user_id=user.id, document_id=document_id, chunk_id=chunk_id
+    )
+    if chunk is None:
+        raise AppError(status_code=404, error="chunk_not_found", message="Chunk not found.")
+    document = await container.documents.get(user_id=user.id, document_id=document_id)
+    return {
+        "id": chunk.id,
+        "document_id": chunk.document_id,
+        "filename": document.filename if document else None,
+        "chunk_index": chunk.chunk_index,
+        "content": chunk.content,
+        "chapter_name": chunk.chapter_name,
+        "page_start": chunk.page_start,
+        "page_end": chunk.page_end,
+    }
+
+
 @router.get("/{document_id}")
 async def get_document(
     document_id: str,

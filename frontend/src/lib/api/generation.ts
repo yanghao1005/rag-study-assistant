@@ -20,6 +20,7 @@ export async function generateFlashcards(
     count?: number;
     query?: string;
     document_id?: string;
+    document_ids?: string[];
     save?: boolean;
   },
 ) {
@@ -37,6 +38,7 @@ export async function generateQuiz(
     count?: number;
     query?: string;
     document_id?: string;
+    document_ids?: string[];
     difficulty?: "easy" | "medium" | "hard";
     save?: boolean;
   },

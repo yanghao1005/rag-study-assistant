@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { FadeIn, motion, useReducedMotion } from "@/components/motion/fade-in";
 import { EmptyState } from "@/components/shared/empty-state";
+import { DocumentScopePicker } from "@/components/documents/document-scope-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubjectDocuments } from "@/features/documents/use-documents";
+import {
+  documentScopePayload,
+  useSelectedDocumentIds,
+} from "@/features/documents/use-document-scope";
 import {
   useArtifacts,
   useGenerateFlashcards,
@@ -22,14 +27,15 @@ export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
   const generate = useGenerateFlashcards();
   const loadArtifact = useLoadArtifact();
   const { data: artifacts } = useArtifacts(subjectId, "flashcard_deck");
+  const selectedDocumentIds = useSelectedDocumentIds(subjectId);
   const [cards, setCards] = useState<FlashcardDto[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [query, setQuery] = useState("");
-  const [pending, startTransition] = useTransition();
 
   const readyDocs = documents?.filter((d) => d.status === "ready") ?? [];
   const current = cards[index];
+  const generating = generate.isPending;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -51,44 +57,41 @@ export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [cards.length]);
 
-  function onGenerate() {
-    startTransition(async () => {
-      try {
-        const result = await generate.mutateAsync({
-          subject_id: subjectId,
-          count: 8,
-          query: query.trim() || undefined,
-        });
-        if (!result.cards.length) {
-          toast.error("No se generaron tarjetas. Prueba con más material.");
-          return;
-        }
-        setCards(result.cards);
-        setIndex(0);
-        setFlipped(false);
-        toast.success(`${result.cards.length} flashcards listas`);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error al generar");
+  async function onGenerate() {
+    try {
+      const result = await generate.mutateAsync({
+        subject_id: subjectId,
+        count: 8,
+        query: query.trim() || undefined,
+        ...documentScopePayload(selectedDocumentIds),
+      });
+      if (!result.cards.length) {
+        toast.error("No se generaron tarjetas. Prueba con más material.");
+        return;
       }
-    });
+      setCards(result.cards);
+      setIndex(0);
+      setFlipped(false);
+      toast.success(`${result.cards.length} flashcards listas`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al generar");
+    }
   }
 
-  function onOpenArtifact(artifactId: string) {
-    startTransition(async () => {
-      try {
-        const artifact = await loadArtifact.mutateAsync(artifactId);
-        if (!artifact.cards?.length) {
-          toast.error("Este deck no tiene tarjetas.");
-          return;
-        }
-        setCards(artifact.cards);
-        setIndex(0);
-        setFlipped(false);
-        toast.success("Deck cargado");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "No se pudo cargar");
+  async function onOpenArtifact(artifactId: string) {
+    try {
+      const artifact = await loadArtifact.mutateAsync(artifactId);
+      if (!artifact.cards?.length) {
+        toast.error("Este deck no tiene tarjetas.");
+        return;
       }
-    });
+      setCards(artifact.cards);
+      setIndex(0);
+      setFlipped(false);
+      toast.success("Deck cargado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo cargar");
+    }
   }
 
   if (isLoading) {
@@ -106,14 +109,17 @@ export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-6 pt-2">
+      <div className="w-full">
+        <DocumentScopePicker subjectId={subjectId} documents={readyDocs} />
+      </div>
       <FadeIn className="flex w-full flex-col gap-3 sm:flex-row" y={6}>
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tema opcional (ej. fotosíntesis)"
+          placeholder="Concepto del temario (ej. BMC, cadena de valor)"
         />
-        <Button onClick={onGenerate} disabled={pending || generate.isPending}>
-          {pending || generate.isPending ? "Generando…" : "Generar"}
+        <Button onClick={() => void onGenerate()} disabled={generating}>
+          {generating ? "Generando…" : "Generar"}
         </Button>
       </FadeIn>
 
@@ -126,8 +132,8 @@ export function FlashcardsPanel({ subjectId }: { subjectId: string }) {
               variant="outline"
               size="sm"
               className="hover-lift"
-              disabled={pending || loadArtifact.isPending}
-              onClick={() => onOpenArtifact(item.id)}
+              disabled={generating || loadArtifact.isPending}
+              onClick={() => void onOpenArtifact(item.id)}
             >
               {item.title || "Deck"}
             </Button>

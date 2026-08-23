@@ -6,6 +6,7 @@ import { useSessionStore } from "@/features/auth/session-store";
 import {
   deleteDocument,
   listDocuments,
+  reindexDocument,
   uploadDocument,
   type DocumentDto,
 } from "@/lib/api/documents";
@@ -51,6 +52,18 @@ export function useDeleteDocument(subjectId: string) {
 
   return useMutation({
     mutationFn: (documentId: string) => deleteDocument(token, documentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["documents", subjectId] });
+    },
+  });
+}
+
+export function useReindexDocument(subjectId: string) {
+  const token = useSessionStore((s) => s.token);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: string) => reindexDocument(token, documentId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["documents", subjectId] });
     },

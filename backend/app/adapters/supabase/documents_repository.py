@@ -34,6 +34,7 @@ def _document_from_row(row: dict[str, Any]) -> Document:
         total_pages=int(row.get("total_pages") or 0),
         file_size=int(row.get("file_size") or 0),
         checksum=row.get("checksum"),
+        synopsis=row.get("synopsis"),
         metadata=row.get("metadata") or {},
         created_at=_parse_dt(row.get("created_at")),
         updated_at=_parse_dt(row.get("updated_at")),
@@ -58,6 +59,7 @@ class SupabaseDocumentRepository(DocumentRepositoryPort):
             "total_pages": document.total_pages,
             "file_size": document.file_size,
             "checksum": document.checksum,
+            "synopsis": document.synopsis,
             "metadata": document.metadata,
         }
         response = self._client.table("documents").insert(payload).execute()
@@ -96,6 +98,7 @@ class SupabaseDocumentRepository(DocumentRepositoryPort):
             "storage_path": document.storage_path,
             "mime_type": document.mime_type,
             "checksum": document.checksum,
+            "synopsis": document.synopsis,
             "metadata": document.metadata,
         }
         response = (
@@ -190,3 +193,38 @@ class SupabaseDocumentRepository(DocumentRepositoryPort):
                 )
             )
         return chunks
+
+    async def get_chunk(
+        self,
+        *,
+        user_id: str,
+        document_id: str,
+        chunk_id: str,
+    ) -> DocumentChunk | None:
+        response = (
+            self._client.table("document_chunks")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("document_id", document_id)
+            .eq("id", chunk_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        row = response.data[0]
+        return DocumentChunk(
+            id=str(row["id"]),
+            user_id=str(row["user_id"]),
+            subject_id=str(row["subject_id"]),
+            document_id=str(row["document_id"]),
+            chunk_index=int(row["chunk_index"]),
+            content=str(row["content"]),
+            chapter_name=row.get("chapter_name"),
+            page_start=row.get("page_start"),
+            page_end=row.get("page_end"),
+            token_count=row.get("token_count"),
+            metadata=row.get("metadata") or {},
+            embedding=row.get("embedding"),
+            created_at=_parse_dt(row.get("created_at")),
+        )

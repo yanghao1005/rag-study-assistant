@@ -19,6 +19,7 @@ export function useAskChat() {
       question: string;
       thread_id?: string;
       document_id?: string;
+      document_ids?: string[];
       save?: boolean;
     }) => askChat(token, body),
   });
@@ -51,8 +52,12 @@ export function useChatMessages(threadId: string | undefined) {
 
 export function useInvalidateChatHistory() {
   const queryClient = useQueryClient();
-  return (subjectId: string) =>
-    queryClient.invalidateQueries({ queryKey: ["chat-threads", subjectId] });
+  return (subjectId: string, threadId?: string | null) => {
+    void queryClient.invalidateQueries({ queryKey: ["chat-threads", subjectId] });
+    if (threadId) {
+      void queryClient.invalidateQueries({ queryKey: ["chat-messages", threadId] });
+    }
+  };
 }
 
 export async function streamAsk(
@@ -61,6 +66,9 @@ export async function streamAsk(
     subject_id: string;
     question: string;
     thread_id?: string;
+    document_id?: string;
+    document_ids?: string[];
+    mode?: "standard" | "agentic";
   },
   handlers: StreamHandlers,
 ) {

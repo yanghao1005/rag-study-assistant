@@ -122,7 +122,27 @@ def test_chat_ask(api: tuple[TestClient, object]) -> None:
     payload = response.json()
     assert "answer" in payload
     assert payload["citations"]
+    assert payload["citations"][0]["filename"]
     assert payload["thread_id"]
+
+
+def test_chat_ask_accepts_document_ids(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="History")
+    container.subjects.items[subject.id] = subject
+
+    response = client.post(
+        "/api/chat/ask",
+        headers=auth_headers(),
+        json={
+            "subject_id": subject.id,
+            "question": "Qué es esto?",
+            "document_ids": ["doc-1"],
+            "save": False,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["citations"]
 
 
 def test_chat_stream_and_history(api: tuple[TestClient, object]) -> None:
@@ -218,6 +238,79 @@ def test_generate_flashcards_and_quiz(api: tuple[TestClient, object]) -> None:
     )
     assert quiz_artifact.status_code == 200
     assert quiz_artifact.json()["questions"]
+
+
+def test_reindex_and_profile_and_planner(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="Chemistry")
+    container.subjects.items[subject.id] = subject
+
+    upload = client.post(
+        "/api/documents/upload",
+        headers=auth_headers(),
+        data={"subject_id": subject.id},
+        files={"file": ("fail.pdf", b"%PDF-1.4 x", "application/pdf")},
+    )
+    document_id = upload.json()["document_id"]
+    container.documents.items[document_id].mark_error("boom")
+
+    retry = client.post(f"/api/documents/{document_id}/reindex", headers=auth_headers())
+    assert retry.status_code == 201
+    assert retry.json()["status"] == "queued"
+
+    me = client.get("/api/me", headers=auth_headers())
+    assert me.status_code == 200
+    patched = client.patch(
+        "/api/me",
+        headers=auth_headers(),
+        json={"display_name": "Ada", "preferences": {"agentic_rag": True}},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["display_name"] == "Ada"
+
+    flashcards = client.post(
+        "/api/generate/flashcards",
+        headers=auth_headers(),
+        json={"subject_id": subject.id, "count": 1, "save": True},
+    )
+    assert flashcards.status_code == 200
+    due = client.get(
+        "/api/planner/due",
+        headers=auth_headers(),
+        params={"subject_id": subject.id},
+    )
+    assert due.status_code == 200
+    assert due.json()["items"]
+    card_id = due.json()["items"][0]["flashcard_id"]
+    reviewed = client.post(
+        "/api/planner/review",
+        headers=auth_headers(),
+        json={"flashcard_id": card_id, "quality": 4},
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["interval_days"] >= 1
+
+
+def test_debug_pipeline_disabled_by_default(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="Debug")
+    container.subjects.items[subject.id] = subject
+    upload = client.post(
+        "/api/documents/upload",
+        headers=auth_headers(),
+        data={"subject_id": subject.id},
+        files={"file": ("notes.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+    response = client.post(
+        "/api/debug/pipeline",
+        headers=auth_headers(),
+        json={
+            "document_id": upload.json()["document_id"],
+            "from_stage": "download",
+            "to_stage": "parse",
+        },
+    )
+    assert response.status_code == 404
 
 
 def test_job_not_found(api: tuple[TestClient, object]) -> None:

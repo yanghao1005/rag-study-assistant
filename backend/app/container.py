@@ -12,6 +12,7 @@ from app.adapters.supabase.chat_repository import SupabaseChatRepository
 from app.adapters.supabase.client import create_supabase_admin_client
 from app.adapters.supabase.documents_repository import SupabaseDocumentRepository
 from app.adapters.supabase.jobs_repository import SupabaseJobRepository
+from app.adapters.supabase.profiles_repository import SupabaseProfileRepository
 from app.adapters.supabase.retrieval import SupabaseHybridRetrievalAdapter
 from app.adapters.supabase.storage import SupabaseStorageAdapter
 from app.adapters.supabase.study_repository import SupabaseStudyRepository
@@ -26,6 +27,7 @@ from app.ports.repositories import (
     ChatRepositoryPort,
     DocumentRepositoryPort,
     JobRepositoryPort,
+    ProfileRepositoryPort,
     StudyRepositoryPort,
     SubjectRepositoryPort,
 )
@@ -42,6 +44,7 @@ class AppContainer:
     parser: DocumentParserPort
     chunker: ChunkerPort
     storage: StoragePort
+    profiles: ProfileRepositoryPort
     subjects: SubjectRepositoryPort
     documents: DocumentRepositoryPort
     jobs: JobRepositoryPort
@@ -72,6 +75,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     storage: StoragePort = SupabaseStorageAdapter(
         supabase, bucket=cfg.supabase_storage_bucket
     )
+    profiles: ProfileRepositoryPort = SupabaseProfileRepository(supabase)
     subjects: SubjectRepositoryPort = SupabaseSubjectRepository(supabase)
     documents: DocumentRepositoryPort = SupabaseDocumentRepository(supabase)
     jobs: JobRepositoryPort = SupabaseJobRepository(supabase)
@@ -92,6 +96,8 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         parser=parser,
         chunker=chunker,
         embeddings=embeddings,
+        llm=llm,
+        enable_hierarchical_rag=cfg.enable_hierarchical_rag,
     )
     return AppContainer(
         settings=cfg,
@@ -101,6 +107,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         parser=parser,
         chunker=chunker,
         storage=storage,
+        profiles=profiles,
         subjects=subjects,
         documents=documents,
         jobs=jobs,

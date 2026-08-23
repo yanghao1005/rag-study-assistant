@@ -12,9 +12,9 @@ on:
       - .github/workflows/frontend_ci.yml
 
 jobs:
-  typecheck-and-build:
+  quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: frontend
@@ -45,9 +45,22 @@ jobs:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api
         run: pnpm exec tsc --noEmit
 
+      - name: Unit tests
+        run: pnpm test
+
       - name: Build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: public-anon-key-for-ci
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api
         run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Smoke E2E
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: public-anon-key-for-ci
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api
+        run: pnpm test:e2e

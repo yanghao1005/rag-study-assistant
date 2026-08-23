@@ -19,6 +19,7 @@ export function useGenerateFlashcards() {
       count?: number;
       query?: string;
       document_id?: string;
+      document_ids?: string[];
     }) => generateFlashcards(token, body),
     onSuccess: async (_data, vars) => {
       await queryClient.invalidateQueries({
@@ -37,6 +38,7 @@ export function useGenerateQuiz() {
       count?: number;
       query?: string;
       document_id?: string;
+      document_ids?: string[];
       difficulty?: "easy" | "medium" | "hard";
     }) => generateQuiz(token, body),
     onSuccess: async (_data, vars) => {

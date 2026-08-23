@@ -76,6 +76,7 @@ class PipelineStage(StrEnum):
     CHUNK = "chunk"
     EMBED = "embed"
     STORE = "store"
+    SYNOPSIS = "synopsis"
     RETRIEVE = "retrieve"
     GENERATE = "generate"
     VALIDATE = "validate"

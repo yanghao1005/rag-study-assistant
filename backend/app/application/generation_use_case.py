@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 from uuid import uuid4
 
+from app.application.retrieval_policy import (
+    build_index_context,
+    format_context_blocks,
+    generation_search_query,
+    is_course_admin_text,
+    merge_with_opening_chunks,
+    select_documents_for_generation,
+)
 from app.core.errors import AppError
+from app.domain.entities.document import DocumentChunk
 from app.domain.entities.enums import (
     ArtifactStatus,
     ArtifactType,
@@ -19,7 +29,29 @@ from app.ports.repositories import (
     StudyRepositoryPort,
     SubjectRepositoryPort,
 )
-from app.ports.retrieval import RetrievalFilters, VectorSearchPort
+from app.ports.retrieval import HybridRetrievalResult, RetrievalFilters, VectorSearchPort
+
+_FLASHCARD_SYSTEM = (
+    "You create active-recall flashcards for exam revision of the SUBJECT MATTER. "
+    'Return JSON: {"cards":[{"front":"...","back":"...","hint":null}]}. '
+    "Each card tests one concept, definition, framework, process, formula or comparison "
+    "that a student must remember from the notes. "
+    "Front is a short question; back is the answer from the notes. "
+    "Use the same language as the source text. "
+    "FORBIDDEN topics: course logistics, grading/how the course is evaluated, ECTS, "
+    "schedule, teacher, deadlines, syllabus meta, 'what this course is about', "
+    "or copying learning-outcome lists from the course presentation. "
+    "If the context mixes a course guide with lecture notes, ignore the guide."
+)
+_QUIZ_SYSTEM = (
+    "You create a multiple-choice quiz for exam revision of the SUBJECT MATTER. "
+    'Return JSON: {"questions":[{"question":"...","options":["A","B","C","D"],'
+    '"correct_option_index":0,"explanation":"..."}]}. '
+    "Each item tests a concept, model, process or comparison from the lecture notes. "
+    "FORBIDDEN: course logistics, grading of the course, ECTS, schedule, teacher, "
+    "deadlines, or syllabus meta from the course presentation. "
+    "Use the same language as the source text."
+)
 
 
 class GenerationUseCase:
@@ -47,38 +79,129 @@ class GenerationUseCase:
         subject_id: str,
         query: str | None,
         document_id: str | None,
-        limit: int = 8,
-    ) -> tuple[str, list[str]]:
+        document_ids: list[str] | None = None,
+        limit: int = 12,
+    ) -> tuple[str, list[str], str | None]:
         subject = await self._subjects.get(user_id=user_id, subject_id=subject_id)
         if subject is None:
             raise AppError(status_code=404, error="subject_not_found", message="Subject not found.")
 
-        search_query = query or f"Key concepts for {subject.name}"
+        requested = RetrievalFilters(
+            user_id=user_id,
+            subject_id=subject_id,
+            document_id=document_id,
+            document_ids=tuple(document_ids or ()),
+        )
+        all_docs = await self._documents.list_for_subject(user_id=user_id, subject_id=subject_id)
+        requested_ids = requested.resolved_document_ids()
+        docs = select_documents_for_generation(all_docs, scoped_ids=requested_ids)
+        study_ids = tuple(document.id for document in docs)
+        filters = RetrievalFilters(
+            user_id=user_id,
+            subject_id=subject_id,
+            document_id=document_id if requested_ids else None,
+            document_ids=tuple(document_ids or ()) if requested_ids else (),
+        )
+        scoped_document_id = study_ids[0] if len(study_ids) == 1 else None
+
+        search_query = generation_search_query(subject.name, query)
         embedding = (await self._embeddings.embed([search_query]))[0]
         result = await self._retrieval.hybrid_search(
             query_text=search_query,
             query_embedding=embedding,
-            filters=RetrievalFilters(
-                user_id=user_id,
-                subject_id=subject_id,
-                document_id=document_id,
-            ),
-            match_count=limit,
+            filters=filters,
+            match_count=max(limit, 16),
         )
-        if not result.chunks:
-            # Fallback: take stored chunks if retrieval empty
-            chunks = await self._documents.list_chunks(
+        if not requested_ids and docs:
+            allowed = {item.id for item in docs}
+            result = HybridRetrievalResult(
+                chunks=[chunk for chunk in result.chunks if chunk.document_id in allowed],
+                dense_ids=result.dense_ids,
+                lexical_ids=result.lexical_ids,
+            )
+        if study_ids:
+            openings = await self._opening_chunks(
                 user_id=user_id,
                 subject_id=subject_id,
-                document_id=document_id,
+                document_ids=list(study_ids),
+                per_document=2,
+            )
+            result = merge_with_opening_chunks(
+                result, openings, per_document=2, limit=limit
+            )
+        if not result.chunks:
+            fallback = await self._fallback_chunks(
+                user_id=user_id,
+                subject_id=subject_id,
+                scoped=study_ids,
                 limit=limit,
             )
-            texts = [c.content for c in chunks]
-            ids = [c.id for c in chunks]
-        else:
-            texts = [c.content for c in result.chunks]
-            ids = [c.id for c in result.chunks]
-        return "\n\n".join(texts), ids
+            texts = [chunk.content for chunk in fallback]
+            ids = [chunk.id for chunk in fallback]
+            return "\n\n".join(texts), ids, scoped_document_id
+
+        index_block = build_index_context(
+            docs or all_docs,
+            retrieved_ids={chunk.document_id for chunk in result.chunks},
+            include_all=True,
+        )
+        context = format_context_blocks(result.chunks, docs or all_docs)
+        combined = f"{index_block}\n\n{context}" if index_block else context
+        return combined, [chunk.id for chunk in result.chunks], scoped_document_id
+
+    async def _opening_chunks(
+        self,
+        *,
+        user_id: str,
+        subject_id: str,
+        document_ids: list[str],
+        per_document: int,
+    ) -> list[DocumentChunk]:
+        if not document_ids:
+            return []
+
+        async def load(document_id: str) -> list[DocumentChunk]:
+            return await self._documents.list_chunks(
+                user_id=user_id,
+                subject_id=subject_id,
+                document_id=document_id,
+                limit=per_document,
+            )
+
+        parts = await asyncio.gather(*[load(doc_id) for doc_id in document_ids])
+        chunks: list[DocumentChunk] = []
+        for part in parts:
+            chunks.extend(part)
+        return chunks
+
+    async def _fallback_chunks(
+        self,
+        *,
+        user_id: str,
+        subject_id: str,
+        scoped: tuple[str, ...],
+        limit: int,
+    ) -> list[DocumentChunk]:
+        if not scoped:
+            return await self._documents.list_chunks(
+                user_id=user_id,
+                subject_id=subject_id,
+                limit=limit,
+            )
+        chunks = []
+        remaining = limit
+        for document_id in scoped:
+            if remaining <= 0:
+                break
+            part = await self._documents.list_chunks(
+                user_id=user_id,
+                subject_id=subject_id,
+                document_id=document_id,
+                limit=remaining,
+            )
+            chunks.extend(part)
+            remaining = limit - len(chunks)
+        return chunks
 
     async def generate_flashcards(
         self,
@@ -88,26 +211,25 @@ class GenerationUseCase:
         count: int = 8,
         query: str | None = None,
         document_id: str | None = None,
+        document_ids: list[str] | None = None,
         save: bool = True,
     ) -> dict[str, object]:
-        context, chunk_ids = await self._context_for_subject(
+        context, chunk_ids, scoped_document_id = await self._context_for_subject(
             user_id=user_id,
             subject_id=subject_id,
             query=query,
             document_id=document_id,
+            document_ids=document_ids,
         )
         structured = await self._llm.complete_json(
             messages=[
-                ChatCompletionMessage(
-                    role="system",
-                    content=(
-                        "Generate study flashcards as JSON: "
-                        '{"cards":[{"front":"...","back":"...","hint":null}]}'
-                    ),
-                ),
+                ChatCompletionMessage(role="system", content=_FLASHCARD_SYSTEM),
                 ChatCompletionMessage(
                     role="user",
-                    content=f"Create {count} flashcards from:\n{context}",
+                    content=(
+                        f"Create {count} flashcards for active recall of the lecture notes.\n"
+                        f"{context}"
+                    ),
                 ),
             ],
             schema_name="flashcards",
@@ -120,6 +242,8 @@ class GenerationUseCase:
             front = str(item.get("front") or "").strip()
             back = str(item.get("back") or "").strip()
             if not front or not back:
+                continue
+            if is_course_admin_text(f"{front}\n{back}"):
                 continue
             cards_payload.append(
                 {
@@ -137,11 +261,13 @@ class GenerationUseCase:
                     id=str(uuid4()),
                     user_id=user_id,
                     subject_id=subject_id,
-                    document_id=document_id,
+                    document_id=scoped_document_id,
                     artifact_type=ArtifactType.FLASHCARD_DECK,
                     title=query or "Flashcards",
                     status=ArtifactStatus.READY,
-                    source_scope=SourceScope.DOCUMENT if document_id else SourceScope.SUBJECT,
+                    source_scope=(
+                        SourceScope.DOCUMENT if scoped_document_id else SourceScope.SUBJECT
+                    ),
                     content_json={"cards": cards_payload},
                 )
             )
@@ -181,29 +307,25 @@ class GenerationUseCase:
         count: int = 5,
         query: str | None = None,
         document_id: str | None = None,
+        document_ids: list[str] | None = None,
         difficulty: str | None = "medium",
         save: bool = True,
     ) -> dict[str, object]:
-        context, chunk_ids = await self._context_for_subject(
+        context, chunk_ids, scoped_document_id = await self._context_for_subject(
             user_id=user_id,
             subject_id=subject_id,
             query=query,
             document_id=document_id,
+            document_ids=document_ids,
         )
         structured = await self._llm.complete_json(
             messages=[
-                ChatCompletionMessage(
-                    role="system",
-                    content=(
-                        "Generate a multiple-choice quiz as JSON: "
-                        '{"questions":[{"question":"...","options":["A","B","C","D"],'
-                        '"correct_option_index":0,"explanation":"..."}]}'
-                    ),
-                ),
+                ChatCompletionMessage(role="system", content=_QUIZ_SYSTEM),
                 ChatCompletionMessage(
                     role="user",
                     content=(
-                        f"Create {count} {difficulty or 'medium'} questions from:\n{context}"
+                        f"Create {count} {difficulty or 'medium'} questions "
+                        f"about the lecture notes, not the course guide.\n{context}"
                     ),
                 ),
             ],
@@ -217,6 +339,8 @@ class GenerationUseCase:
             question = str(item.get("question") or "").strip()
             options = item.get("options") or []
             if not question or not isinstance(options, list) or len(options) < 2:
+                continue
+            if is_course_admin_text(question):
                 continue
             questions_payload.append(
                 {
@@ -235,11 +359,13 @@ class GenerationUseCase:
                     id=str(uuid4()),
                     user_id=user_id,
                     subject_id=subject_id,
-                    document_id=document_id,
+                    document_id=scoped_document_id,
                     artifact_type=ArtifactType.QUIZ,
                     title=query or "Quiz",
                     status=ArtifactStatus.READY,
-                    source_scope=SourceScope.DOCUMENT if document_id else SourceScope.SUBJECT,
+                    source_scope=(
+                        SourceScope.DOCUMENT if scoped_document_id else SourceScope.SUBJECT
+                    ),
                     content_json={"questions": questions_payload},
                 )
             )
