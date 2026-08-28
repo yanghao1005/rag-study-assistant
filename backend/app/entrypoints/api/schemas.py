@@ -65,6 +65,32 @@ class GenerateQuizRequest(BaseModel):
     save: bool = True
 
 
+class CreateArtifactRequest(BaseModel):
+    subject_id: str
+    artifact_type: Literal["flashcard_deck", "quiz"]
+    title: str | None = Field(default=None, max_length=200)
+    origin: Literal["manual", "imported"] = "manual"
+    cards: list[dict[str, Any]] = Field(default_factory=list)
+    questions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class UpdateArtifactRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class FlashcardWriteRequest(BaseModel):
+    front: str = Field(min_length=1, max_length=2000)
+    back: str = Field(min_length=1, max_length=4000)
+    hint: str | None = Field(default=None, max_length=1000)
+
+
+class QuizQuestionWriteRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    options: list[str] = Field(min_length=2, max_length=6)
+    correct_option_index: int = Field(ge=0, le=5)
+    explanation: str | None = Field(default=None, max_length=4000)
+
+
 class HealthResponse(BaseModel):
     status: str
 

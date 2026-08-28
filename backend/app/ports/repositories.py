@@ -104,10 +104,22 @@ class StudyRepositoryPort(ABC):
     async def delete_artifact(self, *, user_id: str, artifact_id: str) -> bool: ...
 
     @abstractmethod
+    async def update_artifact(self, artifact: StudyArtifact) -> StudyArtifact: ...
+
+    @abstractmethod
     async def save_flashcards(self, cards: list[Flashcard]) -> int: ...
 
     @abstractmethod
     async def list_flashcards(self, *, user_id: str, artifact_id: str) -> list[Flashcard]: ...
+
+    @abstractmethod
+    async def get_flashcard(self, *, user_id: str, flashcard_id: str) -> Flashcard | None: ...
+
+    @abstractmethod
+    async def update_flashcard(self, card: Flashcard) -> Flashcard: ...
+
+    @abstractmethod
+    async def delete_flashcard(self, *, user_id: str, flashcard_id: str) -> bool: ...
 
     @abstractmethod
     async def save_quiz_questions(self, questions: list[QuizQuestion]) -> int: ...
@@ -116,6 +128,17 @@ class StudyRepositoryPort(ABC):
     async def list_quiz_questions(
         self, *, user_id: str, artifact_id: str
     ) -> list[QuizQuestion]: ...
+
+    @abstractmethod
+    async def get_quiz_question(
+        self, *, user_id: str, question_id: str
+    ) -> QuizQuestion | None: ...
+
+    @abstractmethod
+    async def update_quiz_question(self, question: QuizQuestion) -> QuizQuestion: ...
+
+    @abstractmethod
+    async def delete_quiz_question(self, *, user_id: str, question_id: str) -> bool: ...
 
     @abstractmethod
     async def list_due_flashcards(

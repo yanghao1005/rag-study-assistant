@@ -182,7 +182,13 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Historial
           </p>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={startNewThread}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-primary hover:text-primary"
+            onClick={startNewThread}
+          >
             Nuevo
           </Button>
         </div>
@@ -193,11 +199,13 @@ export function ChatPanel({ subjectId }: { subjectId: string }) {
               <li key={thread.id}>
                 <button
                   type="button"
+                  title={thread.title || "Chat"}
                   className={cn(
-                    "w-full cursor-pointer rounded-md px-2 py-2 text-left text-sm transition-colors",
+                    "w-full cursor-pointer rounded-md border-l-2 px-2 py-2 text-left text-sm transition-all duration-200",
+                    "focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
                     thread.id === threadId
-                      ? "bg-accent font-medium text-accent-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      ? "border-primary bg-accent font-medium text-accent-foreground hover:bg-accent/80"
+                      : "border-transparent text-muted-foreground hover:border-primary/40 hover:bg-secondary hover:text-foreground",
                   )}
                   onClick={() => openThread(thread.id)}
                 >

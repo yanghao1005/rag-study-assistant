@@ -196,7 +196,112 @@ def test_list_artifacts(api: tuple[TestClient, object]) -> None:
         params={"subject_id": subject.id},
     )
     assert listed.status_code == 200
-    assert len(listed.json()["items"]) >= 1
+    items = listed.json()["items"]
+    assert len(items) >= 1
+    assert items[0]["title"].startswith("Flashcards · ")
+    assert items[0]["origin"] == "generated"
+    assert items[0]["item_count"] >= 1
+
+
+def test_artifact_library_crud(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="Biology")
+    container.subjects.items[subject.id] = subject
+
+    created = client.post(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        json={"subject_id": subject.id, "artifact_type": "flashcard_deck", "title": "BMC"},
+    )
+    assert created.status_code == 201
+    artifact_id = created.json()["id"]
+    assert created.json()["title"] == "BMC"
+    assert created.json()["origin"] == "manual"
+    assert created.json()["item_count"] == 0
+
+    added = client.post(
+        f"/api/generate/artifacts/{artifact_id}/flashcards",
+        headers=auth_headers(),
+        json={"front": "¿Qué es BMC?", "back": "Business Model Canvas", "hint": None},
+    )
+    assert added.status_code == 201
+    card_id = added.json()["id"]
+
+    renamed = client.patch(
+        f"/api/generate/artifacts/{artifact_id}",
+        headers=auth_headers(),
+        json={"title": "Canvas"},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "Canvas"
+
+    listed = client.get(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        params={"subject_id": subject.id, "artifact_type": "flashcard_deck"},
+    )
+    row = listed.json()["items"][0]
+    assert row["item_count"] == 1
+    assert row["updated_at"] is not None
+    assert row["updated_at"] >= (row["created_at"] or "")
+
+    deleted_card = client.delete(
+        f"/api/generate/artifacts/{artifact_id}/flashcards/{card_id}",
+        headers=auth_headers(),
+    )
+    assert deleted_card.status_code == 200
+
+    deleted = client.delete(
+        f"/api/generate/artifacts/{artifact_id}",
+        headers=auth_headers(),
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+
+
+def test_artifact_list_orders_by_updated_at(api: tuple[TestClient, object]) -> None:
+    client, container = api
+    subject = Subject(id=str(uuid4()), user_id="user-1", name="Biology")
+    container.subjects.items[subject.id] = subject
+
+    older = client.post(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        json={"subject_id": subject.id, "artifact_type": "flashcard_deck", "title": "Older"},
+    )
+    newer = client.post(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        json={"subject_id": subject.id, "artifact_type": "flashcard_deck", "title": "Newer"},
+    )
+    assert older.status_code == 201
+    assert newer.status_code == 201
+    older_id = older.json()["id"]
+    newer_id = newer.json()["id"]
+
+    listed = client.get(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        params={"subject_id": subject.id, "artifact_type": "flashcard_deck"},
+    )
+    assert listed.json()["items"][0]["id"] == newer_id
+
+    added = client.post(
+        f"/api/generate/artifacts/{older_id}/flashcards",
+        headers=auth_headers(),
+        json={"front": "P", "back": "R", "hint": "pista"},
+    )
+    assert added.status_code == 201
+
+    listed = client.get(
+        "/api/generate/artifacts",
+        headers=auth_headers(),
+        params={"subject_id": subject.id, "artifact_type": "flashcard_deck"},
+    )
+    items = listed.json()["items"]
+    assert items[0]["id"] == older_id
+    assert items[0]["item_count"] == 1
+    assert items[0]["updated_at"] >= items[1]["updated_at"]
 
 
 def test_generate_flashcards_and_quiz(api: tuple[TestClient, object]) -> None:
@@ -207,7 +312,7 @@ def test_generate_flashcards_and_quiz(api: tuple[TestClient, object]) -> None:
     flashcards = client.post(
         "/api/generate/flashcards",
         headers=auth_headers(),
-        json={"subject_id": subject.id, "count": 1, "save": True},
+        json={"subject_id": subject.id, "count": 1, "query": "BMC", "save": True},
     )
     assert flashcards.status_code == 200
     fc = flashcards.json()
@@ -221,6 +326,7 @@ def test_generate_flashcards_and_quiz(api: tuple[TestClient, object]) -> None:
     assert artifact.status_code == 200
     assert artifact.json()["artifact_type"] == "flashcard_deck"
     assert artifact.json()["cards"]
+    assert artifact.json()["title"] == "BMC"
 
     quiz = client.post(
         "/api/generate/quiz",

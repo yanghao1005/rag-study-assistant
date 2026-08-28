@@ -13,6 +13,7 @@ from app.application.retrieval_policy import (
     merge_with_opening_chunks,
     select_documents_for_generation,
 )
+from app.application.study_artifacts import study_artifact_title
 from app.core.errors import AppError
 from app.domain.entities.document import DocumentChunk
 from app.domain.entities.enums import (
@@ -263,12 +264,13 @@ class GenerationUseCase:
                     subject_id=subject_id,
                     document_id=scoped_document_id,
                     artifact_type=ArtifactType.FLASHCARD_DECK,
-                    title=query or "Flashcards",
+                    title=study_artifact_title(query, kind="flashcards"),
                     status=ArtifactStatus.READY,
                     source_scope=(
                         SourceScope.DOCUMENT if scoped_document_id else SourceScope.SUBJECT
                     ),
                     content_json={"cards": cards_payload},
+                    metadata={"origin": "generated"},
                 )
             )
             artifact_id = artifact.id
@@ -361,12 +363,13 @@ class GenerationUseCase:
                     subject_id=subject_id,
                     document_id=scoped_document_id,
                     artifact_type=ArtifactType.QUIZ,
-                    title=query or "Quiz",
+                    title=study_artifact_title(query, kind="quiz"),
                     status=ArtifactStatus.READY,
                     source_scope=(
                         SourceScope.DOCUMENT if scoped_document_id else SourceScope.SUBJECT
                     ),
                     content_json={"questions": questions_payload},
+                    metadata={"origin": "generated"},
                 )
             )
             artifact_id = artifact.id

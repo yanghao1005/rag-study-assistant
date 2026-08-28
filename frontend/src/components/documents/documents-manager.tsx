@@ -164,7 +164,7 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
         <Stagger className="divide-y divide-border border-y border-border" delay={0.05}>
           {documents.map((doc) => (
             <StaggerItem key={doc.id}>
-              <div className="flex items-center justify-between gap-4 py-3 transition-colors hover:bg-secondary/40">
+              <div className="group flex items-center justify-between gap-4 rounded-md px-2 py-3 transition-colors duration-200 hover:bg-secondary/40">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{doc.filename}</p>
                   <p className="text-sm text-muted-foreground">
@@ -200,7 +200,7 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-destructive"
+                    className="text-destructive opacity-100 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100"
                     disabled={remove.isPending}
                     onClick={() => {
                       startTransition(async () => {

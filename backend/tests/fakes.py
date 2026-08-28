@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.application.ingestion_pipeline import IngestionPipeline
@@ -229,8 +229,18 @@ class FakeStudy(StudyRepositoryPort):
         self.cards: dict[str, list[Flashcard]] = {}
         self.questions: dict[str, list[QuizQuestion]] = {}
         self.reviews: dict[str, FlashcardReview] = {}
+        self._clock = datetime.now(UTC)
+
+    def _tick(self) -> datetime:
+        self._clock = self._clock + timedelta(seconds=1)
+        return self._clock
 
     async def create_artifact(self, artifact: StudyArtifact) -> StudyArtifact:
+        now = self._tick()
+        if artifact.created_at is None:
+            artifact.created_at = now
+        if artifact.updated_at is None:
+            artifact.updated_at = now
         self.artifacts[artifact.id] = artifact
         return artifact
 
@@ -250,14 +260,25 @@ class FakeStudy(StudyRepositoryPort):
         ]
         if artifact_type:
             items = [a for a in items if a.artifact_type.value == artifact_type]
-        return items
+        return sorted(
+            items,
+            key=lambda item: item.updated_at or item.created_at or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
 
     async def delete_artifact(self, *, user_id: str, artifact_id: str) -> bool:
         artifact = self.artifacts.get(artifact_id)
         if artifact and artifact.user_id == user_id:
             del self.artifacts[artifact_id]
+            self.cards.pop(artifact_id, None)
+            self.questions.pop(artifact_id, None)
             return True
         return False
+
+    async def update_artifact(self, artifact: StudyArtifact) -> StudyArtifact:
+        artifact.updated_at = self._tick()
+        self.artifacts[artifact.id] = artifact
+        return artifact
 
     async def save_flashcards(self, cards: list[Flashcard]) -> int:
         for card in cards:
@@ -267,6 +288,29 @@ class FakeStudy(StudyRepositoryPort):
     async def list_flashcards(self, *, user_id: str, artifact_id: str) -> list[Flashcard]:
         return [c for c in self.cards.get(artifact_id, []) if c.user_id == user_id]
 
+    async def get_flashcard(self, *, user_id: str, flashcard_id: str) -> Flashcard | None:
+        for cards in self.cards.values():
+            for card in cards:
+                if card.id == flashcard_id and card.user_id == user_id:
+                    return card
+        return None
+
+    async def update_flashcard(self, card: Flashcard) -> Flashcard:
+        items = self.cards.get(card.artifact_id, [])
+        for index, existing in enumerate(items):
+            if existing.id == card.id:
+                items[index] = card
+                break
+        return card
+
+    async def delete_flashcard(self, *, user_id: str, flashcard_id: str) -> bool:
+        for artifact_id, cards in list(self.cards.items()):
+            kept = [c for c in cards if not (c.id == flashcard_id and c.user_id == user_id)]
+            if len(kept) != len(cards):
+                self.cards[artifact_id] = kept
+                return True
+        return False
+
     async def save_quiz_questions(self, questions: list[QuizQuestion]) -> int:
         for q in questions:
             self.questions.setdefault(q.artifact_id, []).append(q)
@@ -274,6 +318,29 @@ class FakeStudy(StudyRepositoryPort):
 
     async def list_quiz_questions(self, *, user_id: str, artifact_id: str) -> list[QuizQuestion]:
         return [q for q in self.questions.get(artifact_id, []) if q.user_id == user_id]
+
+    async def get_quiz_question(self, *, user_id: str, question_id: str) -> QuizQuestion | None:
+        for questions in self.questions.values():
+            for item in questions:
+                if item.id == question_id and item.user_id == user_id:
+                    return item
+        return None
+
+    async def update_quiz_question(self, question: QuizQuestion) -> QuizQuestion:
+        items = self.questions.get(question.artifact_id, [])
+        for index, existing in enumerate(items):
+            if existing.id == question.id:
+                items[index] = question
+                break
+        return question
+
+    async def delete_quiz_question(self, *, user_id: str, question_id: str) -> bool:
+        for artifact_id, questions in list(self.questions.items()):
+            kept = [q for q in questions if not (q.id == question_id and q.user_id == user_id)]
+            if len(kept) != len(questions):
+                self.questions[artifact_id] = kept
+                return True
+        return False
 
     async def list_due_flashcards(
         self, *, user_id: str, subject_id: str, limit: int = 20

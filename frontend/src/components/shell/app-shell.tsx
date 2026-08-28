@@ -100,10 +100,10 @@ export function AppShell({
                 href={`/subjects/${subject.id}/documents`}
                 onClick={() => setSubjectId(subject.id)}
                 className={cn(
-                  "rounded-md px-3 py-2 text-sm transition-all duration-200",
+                  "cursor-pointer rounded-md px-3 py-2 text-sm transition-all duration-200",
                   subject.id === subjectId
                     ? "border-l-2 border-primary bg-accent font-semibold text-accent-foreground"
-                    : "border-l-2 border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    : "border-l-2 border-transparent text-muted-foreground hover:border-primary/40 hover:bg-secondary hover:text-foreground",
                 )}
               >
                 {subject.name}
@@ -129,7 +129,7 @@ export function AppShell({
           <Link
             href="/settings"
             className={cn(
-              "inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm",
+              "inline-flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors duration-200",
               pathname.startsWith("/settings")
                 ? "bg-accent font-semibold text-accent-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -172,7 +172,7 @@ export function AppShell({
                       key={mode.slug}
                       href={`/subjects/${subjectId}/${mode.slug}`}
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-200",
+                        "inline-flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-200",
                         active
                           ? "bg-accent font-semibold text-accent-foreground"
                           : "text-muted-foreground hover:bg-secondary hover:text-foreground",

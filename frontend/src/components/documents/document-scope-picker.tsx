@@ -36,7 +36,7 @@ export function DocumentScopePicker({
         {selected.length > 0 ? (
           <button
             type="button"
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="cursor-pointer text-xs text-muted-foreground underline-offset-4 transition-colors duration-200 hover:text-foreground hover:underline"
             onClick={() => clear(subjectId)}
           >
             Usar todos
@@ -56,11 +56,12 @@ export function DocumentScopePicker({
               type="button"
               onClick={() => toggle(subjectId, doc.id)}
               aria-pressed={active}
+              title={doc.filename}
               className={cn(
-                "max-w-full cursor-pointer truncate rounded-full border px-3 py-1 text-xs transition-colors",
+                "max-w-full cursor-pointer truncate rounded-full border px-3 py-1 text-xs transition-all duration-200 active:scale-[0.98]",
                 active
                   ? "border-primary bg-accent font-medium text-accent-foreground"
-                  : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  : "border-border text-muted-foreground hover:border-primary/40 hover:bg-secondary hover:text-foreground",
               )}
             >
               {doc.filename}

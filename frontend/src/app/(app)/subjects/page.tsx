@@ -57,7 +57,7 @@ export default function SubjectsPage() {
           <Stagger className="mt-10 divide-y divide-border border-y border-border" delay={0.06}>
             {subjects.map((subject) => (
               <StaggerItem key={subject.id}>
-                <div className="flex items-center justify-between gap-4 py-4 transition-colors hover:bg-secondary/40">
+                <div className="group flex items-center justify-between gap-4 rounded-md px-2 py-4 transition-colors duration-200 hover:bg-secondary/40">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{subject.name}</p>
                     {subject.description ? (
@@ -76,7 +76,7 @@ export default function SubjectsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="cursor-pointer text-destructive"
+                      className="cursor-pointer text-destructive opacity-100 transition-opacity duration-150 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100"
                       disabled={pending || remove.isPending}
                       onClick={() => {
                         if (!window.confirm(`¿Eliminar “${subject.name}”?`)) {

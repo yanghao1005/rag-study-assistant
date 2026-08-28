@@ -45,6 +45,40 @@ def _artifact_from_row(row: dict[str, Any]) -> StudyArtifact:
     )
 
 
+def _flashcard_from_row(row: dict[str, Any]) -> Flashcard:
+    return Flashcard(
+        id=str(row["id"]),
+        user_id=str(row["user_id"]),
+        artifact_id=str(row["artifact_id"]),
+        front=str(row["front"]),
+        back=str(row["back"]),
+        hint=row.get("hint"),
+        difficulty=Difficulty(row["difficulty"]) if row.get("difficulty") else None,
+        tags=list(row.get("tags") or []),
+        source_chunk_ids=[str(x) for x in (row.get("source_chunk_ids") or [])],
+        position=int(row.get("position") or 0),
+        created_at=_parse_dt(row.get("created_at")),
+    )
+
+
+def _question_from_row(row: dict[str, Any]) -> QuizQuestion:
+    return QuizQuestion(
+        id=str(row["id"]),
+        user_id=str(row["user_id"]),
+        artifact_id=str(row["artifact_id"]),
+        question=str(row["question"]),
+        options=list(row.get("options") or []),
+        correct_option_index=row.get("correct_option_index"),
+        correct_answer=row.get("correct_answer"),
+        explanation=row.get("explanation"),
+        question_type=QuestionType(row.get("question_type") or "multiple_choice"),
+        difficulty=Difficulty(row["difficulty"]) if row.get("difficulty") else None,
+        source_chunk_ids=[str(x) for x in (row.get("source_chunk_ids") or [])],
+        position=int(row.get("position") or 0),
+        created_at=_parse_dt(row.get("created_at")),
+    )
+
+
 def _review_from_row(row: dict[str, Any]) -> FlashcardReview:
     return FlashcardReview(
         id=str(row["id"]),
@@ -107,6 +141,7 @@ class SupabaseStudyRepository(StudyRepositoryPort):
             .select("*")
             .eq("user_id", user_id)
             .eq("subject_id", subject_id)
+            .order("updated_at", desc=True)
             .order("created_at", desc=True)
         )
         if artifact_type:
@@ -123,6 +158,28 @@ class SupabaseStudyRepository(StudyRepositoryPort):
             .execute()
         )
         return bool(response.data)
+
+    async def update_artifact(self, artifact: StudyArtifact) -> StudyArtifact:
+        payload = {
+            "title": artifact.title,
+            "status": artifact.status.value,
+            "source_scope": artifact.source_scope.value,
+            "source_ref": artifact.source_ref,
+            "content_json": artifact.content_json,
+            "metadata": artifact.metadata,
+            "document_id": artifact.document_id,
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        response = (
+            self._client.table("study_artifacts")
+            .update(payload)
+            .eq("id", artifact.id)
+            .eq("user_id", artifact.user_id)
+            .execute()
+        )
+        if not response.data:
+            return artifact
+        return _artifact_from_row(response.data[0])
 
     async def save_flashcards(self, cards: list[Flashcard]) -> int:
         if not cards:
@@ -154,24 +211,51 @@ class SupabaseStudyRepository(StudyRepositoryPort):
             .order("position")
             .execute()
         )
-        cards: list[Flashcard] = []
-        for row in response.data or []:
-            cards.append(
-                Flashcard(
-                    id=str(row["id"]),
-                    user_id=str(row["user_id"]),
-                    artifact_id=str(row["artifact_id"]),
-                    front=str(row["front"]),
-                    back=str(row["back"]),
-                    hint=row.get("hint"),
-                    difficulty=Difficulty(row["difficulty"]) if row.get("difficulty") else None,
-                    tags=list(row.get("tags") or []),
-                    source_chunk_ids=[str(x) for x in (row.get("source_chunk_ids") or [])],
-                    position=int(row.get("position") or 0),
-                    created_at=_parse_dt(row.get("created_at")),
-                )
-            )
-        return cards
+        return [_flashcard_from_row(row) for row in response.data or []]
+
+    async def get_flashcard(self, *, user_id: str, flashcard_id: str) -> Flashcard | None:
+        response = (
+            self._client.table("flashcards")
+            .select("*")
+            .eq("id", flashcard_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return _flashcard_from_row(response.data[0])
+
+    async def update_flashcard(self, card: Flashcard) -> Flashcard:
+        payload = {
+            "front": card.front,
+            "back": card.back,
+            "hint": card.hint,
+            "difficulty": card.difficulty.value if card.difficulty else None,
+            "tags": card.tags,
+            "source_chunk_ids": card.source_chunk_ids,
+            "position": card.position,
+        }
+        response = (
+            self._client.table("flashcards")
+            .update(payload)
+            .eq("id", card.id)
+            .eq("user_id", card.user_id)
+            .execute()
+        )
+        if not response.data:
+            return card
+        return _flashcard_from_row(response.data[0])
+
+    async def delete_flashcard(self, *, user_id: str, flashcard_id: str) -> bool:
+        response = (
+            self._client.table("flashcards")
+            .delete()
+            .eq("id", flashcard_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return bool(response.data)
 
     async def save_quiz_questions(self, questions: list[QuizQuestion]) -> int:
         if not questions:
@@ -205,26 +289,53 @@ class SupabaseStudyRepository(StudyRepositoryPort):
             .order("position")
             .execute()
         )
-        items: list[QuizQuestion] = []
-        for row in response.data or []:
-            items.append(
-                QuizQuestion(
-                    id=str(row["id"]),
-                    user_id=str(row["user_id"]),
-                    artifact_id=str(row["artifact_id"]),
-                    question=str(row["question"]),
-                    options=list(row.get("options") or []),
-                    correct_option_index=row.get("correct_option_index"),
-                    correct_answer=row.get("correct_answer"),
-                    explanation=row.get("explanation"),
-                    question_type=QuestionType(row.get("question_type") or "multiple_choice"),
-                    difficulty=Difficulty(row["difficulty"]) if row.get("difficulty") else None,
-                    source_chunk_ids=[str(x) for x in (row.get("source_chunk_ids") or [])],
-                    position=int(row.get("position") or 0),
-                    created_at=_parse_dt(row.get("created_at")),
-                )
-            )
-        return items
+        return [_question_from_row(row) for row in response.data or []]
+
+    async def get_quiz_question(self, *, user_id: str, question_id: str) -> QuizQuestion | None:
+        response = (
+            self._client.table("quiz_questions")
+            .select("*")
+            .eq("id", question_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return _question_from_row(response.data[0])
+
+    async def update_quiz_question(self, question: QuizQuestion) -> QuizQuestion:
+        payload = {
+            "question": question.question,
+            "options": question.options,
+            "correct_option_index": question.correct_option_index,
+            "correct_answer": question.correct_answer,
+            "explanation": question.explanation,
+            "question_type": question.question_type.value,
+            "difficulty": question.difficulty.value if question.difficulty else None,
+            "source_chunk_ids": question.source_chunk_ids,
+            "position": question.position,
+        }
+        response = (
+            self._client.table("quiz_questions")
+            .update(payload)
+            .eq("id", question.id)
+            .eq("user_id", question.user_id)
+            .execute()
+        )
+        if not response.data:
+            return question
+        return _question_from_row(response.data[0])
+
+    async def delete_quiz_question(self, *, user_id: str, question_id: str) -> bool:
+        response = (
+            self._client.table("quiz_questions")
+            .delete()
+            .eq("id", question_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return bool(response.data)
 
     async def list_due_flashcards(
         self, *, user_id: str, subject_id: str, limit: int = 20
