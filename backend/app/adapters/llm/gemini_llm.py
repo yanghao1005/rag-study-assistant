@@ -55,7 +55,7 @@ class GeminiLLMAdapter(LLMPort):
         )
         response = await self._client.aio.models.generate_content(
             model=self._model,
-            contents=self._to_contents(rest),  # type: ignore[arg-type]
+            contents=self._to_contents(rest),  # type: ignore[arg-type, unused-ignore]
             config=config,
         )
         usage: dict[str, int] = {}
@@ -93,7 +93,7 @@ class GeminiLLMAdapter(LLMPort):
         )
         response = await self._client.aio.models.generate_content(
             model=self._model,
-            contents=self._to_contents(rest),  # type: ignore[arg-type]
+            contents=self._to_contents(rest),  # type: ignore[arg-type, unused-ignore]
             config=config,
         )
         data = json.loads(response.text or "{}")
@@ -121,7 +121,7 @@ class GeminiLLMAdapter(LLMPort):
         )
         stream = await self._client.aio.models.generate_content_stream(
             model=self._model,
-            contents=self._to_contents(rest),  # type: ignore[arg-type]
+            contents=self._to_contents(rest),  # type: ignore[arg-type, unused-ignore]
             config=config,
         )
         async for chunk in stream:
