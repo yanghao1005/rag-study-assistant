@@ -1,22 +1,39 @@
-# Studyraft (RAG Study Assistant)
+# Studyraft
 
-Convierte PDFs propios en un ciclo de estudio: **asignatura → documentos → chat con citas → flashcards / quiz**.
+Turn your own PDFs into a study loop: **subject → documents → cited chat → flashcards / quiz → spaced review (SM-2)**.
 
-## Estructura
+## Layout
 
-| Carpeta | Rol |
-|---------|-----|
-| `backend/` | FastAPI hexagonal (RAG, ingestión, generación) |
-| `frontend/` | Next.js 16 · Studyraft UI |
-| `legacy_code/` | Stacks antiguos (solo referencia) |
-| `backend/supabase/migrations/` | SQL de esquema / RLS / búsqueda |
+| Path | Role |
+|------|------|
+| `backend/` | FastAPI hexagonal API (ingestion, hybrid RAG, generation, planner) |
+| `frontend/` | Next.js 16 app (Studyraft UI) |
+| `backend/supabase/migrations/` | Schema, RLS, storage, search (`0001`–`0008`) |
+| `legacy_code/` | Archived stacks (reference only) |
 
-## Requisitos
+## Requirements
 
 - Python 3.12+
-- Node 20+ (recomendado 22) + pnpm 10
-- Proyecto Supabase (Auth + Postgres + Storage + pgvector)
-- API key OpenAI (o Gemini según `.env`)
+- Node 20+ (22 recommended) and pnpm 10
+- A Supabase project (Auth, Postgres, Storage, pgvector)
+- An OpenAI API key (Gemini is optional for chat)
+
+## Docker
+
+From the repo root, with `backend/.env` filled in and the frontend public vars exported:
+
+```bash
+export NEXT_PUBLIC_SUPABASE_URL=...
+export NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+docker compose up --build
+```
+
+- App: http://localhost:3000
+- API docs: http://localhost:8000/api/docs
+- Health: http://localhost:8000/api/health
+- Defense deck: http://localhost:3000/presentacio
+
+Apply migrations `0001`–`0008` on the Supabase project before using the app.
 
 ## Backend
 
@@ -25,23 +42,26 @@ cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-cp .env.example .env   # rellena Supabase + OpenAI
-# aplica migraciones en Supabase (ver backend/supabase/README.md)
+cp .env.example .env   # fill Supabase + OpenAI
 PYTHONPATH=. python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Calidad:
+Quality:
 
 ```bash
 cd backend
 python -m pytest tests/unit -q
 python -m ruff check app tests
 python -m mypy app
-# opcional (credenciales reales):
-# $env:RUN_REAL_INTEGRATION=1; python -m pytest tests/integration -v
-# pipeline debug:
-# python -m app.entrypoints.cli.pipeline --user-id <uid> --document-id <id> --from-stage parse --to-stage store
-# python -m app.entrypoints.cli.benchmark --user-id <uid> --subject-id <sid> --query "ATP"
+# optional (hits live services):
+# RUN_REAL_INTEGRATION=1 python -m pytest tests/integration -v
+```
+
+Debug helpers:
+
+```bash
+python -m app.entrypoints.cli.pipeline --user-id <uid> --document-id <id> --from-stage parse --to-stage store
+python -m app.entrypoints.cli.benchmark --user-id <uid> --subject-id <sid> --query "value proposition"
 ```
 
 ## Frontend
@@ -53,27 +73,25 @@ cp .env.example .env.local   # Supabase anon + NEXT_PUBLIC_API_URL
 pnpm dev                     # http://localhost:3000
 ```
 
-Build:
+Build and checks:
 
 ```bash
 pnpm exec tsc --noEmit
 pnpm test
 pnpm build
-```
-
-Smoke E2E (Playwright, after `pnpm build`):
-
-```bash
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-Auth notes:
-- Email/password on `/login` (entrar / crear cuenta).
-- Password reset: `/forgot-password` → email link → `/reset-password`.
-- Add redirect URLs in Supabase: `http://localhost:3000/auth/callback` (and prod URL).
+Auth:
 
-Optional retrieval extras (backend `.env`):
+- Email/password on `/login` (sign in or create an account)
+- Password reset: `/forgot-password` → email link → `/reset-password`
+- Add redirect URLs in Supabase: `http://localhost:3000/auth/callback` (and the production URL)
+
+## Retrieval flags (backend `.env`)
+
+Defaults: hybrid search 20 dense + 20 lexical → 8 chunks, LLM rerank off, hierarchical RAG on, agentic RAG off.
 
 ```bash
 RERANK_PROVIDER=llm
@@ -82,27 +100,18 @@ ENABLE_AGENTIC_RAG=true
 ENABLE_DEBUG_ENDPOINTS=true
 ```
 
-## Docker
+Agentic RAG also needs the toggle in `/settings`. Scanned PDFs fail at parse on purpose (no OCR).
 
-Desde la raíz del repo (con `backend/.env` relleno y variables `NEXT_PUBLIC_*` en el entorno):
+## Minimal flow
 
-```bash
-docker compose up --build
-```
+1. Create an account at `/login`
+2. Create a subject
+3. Upload a PDF and wait until status is **Ready** (`Listo` in the Spanish UI)
+4. Chat, flashcards, quiz, or review
+5. Profile and agentic RAG on `/settings`
 
-- API: http://localhost:8000/api/docs
-- App: http://localhost:3000
+The UI is informal Spanish (tú). The API and this README are in English.
 
-Aplica las migraciones `0001`–`0008` en Supabase antes de usarlo.
+## Branch
 
-## Flujo mínimo
-
-1. Crear cuenta en `/login`
-2. Crear asignatura
-3. Subir PDF → esperar estado **Listo**
-4. Chat / Flashcards / Quiz / Repaso
-5. Ajustes en `/settings` (nombre, RAG agentic)
-
-## Rama de despliegue
-
-La rama de producción / entornos reales es **`main`**. La memoria LaTeX vive en la rama `docs/tfm-latex` (`docs/tfm/`), no en `main`.
+Production is **`main`**.
