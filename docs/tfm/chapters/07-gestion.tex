@@ -1,0 +1,218 @@
+\chapter{Gestió, riscos, ètica i sostenibilitat}
+\label{cap:gestion}
+
+Aquest capítol recull tres qüestions sobre el sistema construït: en quin ordre s'ha muntat i per quina dependència; què pot fallar i quina decisió ja hi ha al repositori; qui paga què (hores acadèmiques, API de l'LLM, allotjament). El calendari, les 390\,h i els 9.750\,€ de dedicació són a la secció~\ref{sec:ambit-temporal}. Les alternatives de stack són a la taula~\ref{tab:decisiones}.
+
+\section{Ordre d'enginyeria (després del prototip)}
+
+El juliol de 2026 s'arxiva el llegat LangChain i es reescriu el producte actual. La taula~\ref{tab:ordre-eng} és la \textbf{dependència} entre peces, no un segon Gantt. Sense esquema i RLS no hi ha aïllament; sense ports no hi ha tests amb fakes; sense API no hi ha UI. La memòria va al final perquè documenta l'estat, no el pla inicial.
+
+\begin{table}[htbp]
+\centering
+\caption{Ordre d'enginyeria del sistema actual i per què no es pot avançar el pas.}
+\label{tab:ordre-eng}
+\small
+\begin{tabularx}{\textwidth}{c>{\raggedright\arraybackslash}p{3.4cm}X}
+\toprule
+Pas & Què es va fer & Dependència \\
+\midrule
+1 & Backend i frontend nets, \texttt{.env}, tooling & Sense això no hi ha projecte compilable. \\
+2 & Migracions SQL 0001--0008 i RLS & El cas d'ús necessita \texttt{user\_id} i polítiques abans de pujar PDF. \\
+3 & Domini, ports, adaptadors RAG i ingestió & El pipeline i el xat no poden parlar amb Postgres/OpenAI sense ports. \\
+4 & API FastAPI (35 rutes) i JWT & La UI no crida el domini: crida HTTP autenticat. \\
+5 & Next.js: auth SSR, assignatures, documents, xat, pràctica & Requereix l'API i les cookies de Supabase. \\
+6 & Qualitat, Compose, flags (jeràrquic, agentic, rerank, planner) & Extras sobre un nucli ja testejable. \\
+7 & Biblioteca d'artefactes (CRUD, pistes, import/export) & Requereix flashcards/quiz persistents, no només ``l'última generació''. \\
+8 & Aquesta memòria \LaTeX{} & Documenta el que ja corre, no el que es preveia el desembre. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Riscos del sistema construït}
+
+Un \textbf{risc} és un esdeveniment que fa fallar l'objectiu (resposta inventada, quota esgotada, dades d'un usuari visibles a un altre). Mitigar no és ``ser-ne conscient'': és una decisió ja al codi. La taula~\ref{tab:riesgos} lliga cada risc a un residu honest: el que encara pot passar el dia de la defensa.
+
+\begin{table}[htbp]
+\centering
+\caption{Riscos de Studyraft: on es veuen, què hi ha al repositori i què queda obert.}
+\label{tab:riesgos}
+\small
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{5.0cm}X}
+\toprule
+Risc & Mitigació al repo & Residu \\
+\midrule
+L'LLM inventa fora dels apunts
+  & RAG híbrid, cites \texttt{[n]}, prompt ``only the provided context'', política lecture-focused
+  & No hi ha mètrica de fidelitat (capítol~\ref{cap:resultados}). \\
+Quota o factura OpenAI
+  & Defecte: rerank i agentic apagats; el proveïdor LLM es pot canviar a Gemini
+  & Qualsevol pregunta encara gasta tokens (secció~\ref{sec:cost-api}). \\
+Supabase pausa el projecte gratuït
+  & Esquema al git (migracions); Compose no substitueix el Postgres allotjat
+  & Sense projecte actiu no hi ha Auth ni Storage. \\
+PDF escanejat (imatge)
+  & Fora d'abast; el parse buit és un error visible a la UI
+  & No hi ha OCR. \\
+Llegat LangChain inmantenible
+  & Reescriptura hexagonal; tests amb fakes, sense claus
+  & El prototip resta arxivat, fora del camí de producció. \\
+Abús de l'API (moltes preguntes)
+  & Flags de límit (120 peticions/min) a la configuració
+  & El middleware encara no aplica el límit (deute dit al capítol~\ref{cap:conclusiones}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Dades, privadesa i tercers}
+
+Els PDF d'un estudiant poden contenir noms, correus o capítols de llibre. Studyraft no és un producte comercial, però \textbf{tracta dades}. La taula~\ref{tab:dades} diu què es queda al projecte Supabase i què surt cap a l'LLM. Això no és un dictamen legal.
+
+\begin{table}[htbp]
+\centering
+\caption{Inventari de dades del MVP (un usuari, el seu projecte Supabase).}
+\label{tab:dades}
+\small
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{3.4cm}X}
+\toprule
+Dada & On es guarda & Surts cap a OpenAI / Gemini? \\
+\midrule
+Compte (e-mail, JWT)
+  & Supabase Auth
+  & No. \\
+PDF original
+  & Storage (\texttt{documents})
+  & No: l'API no reenvia el fitxer sencer. \\
+Chunks i embeddings
+  & Postgres (\texttt{pgvector})
+  & Només els $k{=}8$ fragments del context d'una pregunta (i, si s'activa, candidats de rerank). \\
+Fil de xat, cartes, ressenyes SM-2
+  & Postgres, amb RLS
+  & El text de la pregunta i la resposta generada, sí; l'historial SM-2, no. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Tres límits que el tribunal pot preguntar:
+
+\begin{itemize}
+  \item \textbf{Aïllament.} RLS amb \texttt{auth.uid()} al client i \texttt{user\_id} al cas d'ús amb service role (capítol~\ref{cap:arquitectura}). Un UUID endevinat no hauria de llistar documents d'altri; el service role \emph{sí} que pot, per això el backend ha de filtrar sempre.
+  \item \textbf{Encàrrec a un tercer.} Els fragments recuperats viatgen al proveïdor LLM. No es pot prometre ``els apunts no surten mai del disc''. Cal dir-ho a la UI i aquí.
+  \item \textbf{Ús legítim.} El TFM assumeix que qui puja el PDF en té dret. El corpus d'avaluació són apunts d'una assignatura cursada per l'autor; el PDF original no forma part del dipòsit. El sistema no s'ha d'usar per indexar material aliè.
+\end{itemize}
+
+Les captures del capítol~\ref{cap:resultados} tapen el correu de la sessió (peu de la barra) i, al fragment citat de la presentació de l'assignatura, el contacte del professor. El PDF de dipòsit no ha de servir com a llista d'adreces.
+
+Si el centre exigeix un formulari oficial d'ètica (p.~ex.\ UPC), s'adjunta a part: aquesta secció no el substitueix. En termes de memòria (no és assessorament GDPR): la base és el consentiment de l'estudiant sobre els \emph{seus} apunts; la minimització (no cal retenir el PDF eternament) i l'esborrat (cascades SQL + Storage) són línies de producte, no tancades al MVP. El responsable del tractament, en un ús personal, és qui crea el projecte Supabase.
+
+\section{Sostenibilitat (el que sí es pot afirmar)}
+
+Cada ingestió crida el model d'embeddings un cop per chunk; el xat crida l'LLM; el rerank i l'agentic afegeixen crides. No es mesuren kWh del proveïdor: aquest TFM no té telemetria de datacenter. El que sí és una decisió de disseny és \textbf{no} encendre per defecte els bucles cars (taula~\ref{tab:flags-cost}). El Docker local no replica GPU: l'impacte energètic recau en OpenAI o Google.
+
+\begin{table}[htbp]
+\centering
+\caption{Flags que multipliquen crides a GPU aliena. Defecte del producte (setembre 2026).}
+\label{tab:flags-cost}
+\small
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.6cm} l X}
+\toprule
+Paràmetre & Defecte & Efecte \\
+\midrule
+Proveïdor de rerank & \texttt{none} & Sense crida LLM extra per pregunta. \\
+Agentic RAG & \texttt{false} & Sense reescriptura ni segona passada de retrieval. \\
+RAG jeràrquic & \texttt{true} & Una crida d'LLM per sinopsi \emph{en ingestió} (un cop per document). \\
+Proveïdor LLM & OpenAI & El port admet Gemini; els números d'aquesta secció són OpenAI. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Cost: hores, allotjament i API}
+\label{sec:cost-api}
+
+Hi ha \textbf{tres comptes diferents}. Barrejar-los és el que fa incomprensible una sola taula de ``preus''.
+
+\begin{enumerate}
+  \item \textbf{Dedicació acadèmica.} 390\,h $\times$ 25\,€/h $=$ 9.750\,€ (secció~\ref{sec:ambit-temporal}). És el cost d'oportunitat del TFM, no una factura.
+  \item \textbf{Allotjament.} El MVP usa un projecte Supabase del pla gratuït/pausable i Docker al portàtil. No hi ha tesi de negoci. En explotació caldria projecte de pagament, worker separat i retenció dels PDF.
+  \item \textbf{API de models.} OpenAI cobra per \emph{token} (tros de text). Aquesta secció calcula \emph{només} aquest tercer compte, amb preus públics consultats l'1 de setembre de 2026 \parencite{openai-pricing}, sobre el corpus del capítol~\ref{cap:resultados}. \textbf{No és una factura del compte}: no s'han llegit consums reals.
+\end{enumerate}
+
+\subsection{Unitats i tarifes}
+
+Un \textbf{token} és la unitat de facturació. Per a text en català/castellà, una regla grollera (la que usa OpenAI a la documentació) és $\approx 4$ caràcters per token. Studyraft no compta tokens exactes amb un tokenitzador a la ingestió: el càlcul d'aquí és un \textbf{sostre} (pitjor cas), perquè cada chunk té com a màxim 1200 caràcters.
+
+Els models per defecte del repositori són l'\emph{embedding-3-small} (vector de 1536 dimensions) i \texttt{gpt-4.1-mini} (xat, rerank, generació de cartes). La taula~\ref{tab:tarifes} són preus per \textbf{un milió} de tokens. Per passar a dòlars d'una crida: $\mathrm{cost} = (\text{tokens}/10^{6})\times\text{preu}$. OpenAI factura en USD; no es converteix a euros per no fixar un tipus de canvi.
+
+\begin{table}[htbp]
+\centering
+\caption{Tarifes públiques OpenAI usades en aquest capítol (1/09/2026). Font: pàgina d'API pricing.}
+\label{tab:tarifes}
+\small
+\begin{tabularx}{\textwidth}{l X r}
+\toprule
+Model (defecte del repo) & Què factura & USD / 1M tokens \\
+\midrule
+Embeddings \emph{3-small} & Només entrada (el text del chunk) & 0,02 \\
+\texttt{gpt-4.1-mini} & Entrada (prompt + context) & 0,40 \\
+\texttt{gpt-4.1-mini} & Sortida (la resposta generada) & 1,60 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Exemple A: indexar el corpus d'avaluació (una vegada)}
+
+El capítol~\ref{cap:resultados} indexa una assignatura real amb \textbf{114 chunks}. Hipòtesi conservadora: cada chunk fa el màxim (1200 caràcters). El solapament de 150 caràcters duplica uns quants tokens; queda dins el mateix ordre de magnitud.
+
+\begin{align*}
+\text{tokens} &\approx 114 \times 1200 / 4 = 34\,200 \\
+\text{cost embeddings} &= 34\,200 / 10^{6} \times 0{,}02\,\mathrm{USD} = 0{,}000684\,\mathrm{USD}
+\end{align*}
+
+És a dir: \textbf{menys d'un dècim de cèntim de dòlar} per deixar el temari cercable. Si el document té sinopsi jeràrquica activada, hi ha \emph{una} crida extra d'LLM per fitxer en ingestió, no 114: encara és cèntims, no euros. Reindexar cada dia sí que multiplicaria; el producte indexa en pujar el PDF, no en cada pregunta.
+
+\subsection{Exemple B: una pregunta de xat (configuració per defecte)}
+
+Per defecte no hi ha rerank ni agentic. El retrieval deixa $k{=}8$ chunks al prompt. Hipòtesi de sostre:
+
+\begin{itemize}
+  \item Context: $8 \times 1200$ caràcters $\approx 2400$ tokens, més rètols \texttt{[n]} / nom de fitxer ($\approx 150$).
+  \item Prompt de sistema (``answer using only the provided context'') $\approx 100$ tokens.
+  \item Pregunta de l'estudiant $\approx 50$ tokens.
+  \item \textbf{Entrada total} $\approx 2700$ tokens.
+  \item \textbf{Sortida} (resposta típica d'estudi) $\approx 300$ tokens.
+\end{itemize}
+
+\begin{align*}
+\text{entrada} &= 2700 / 10^{6} \times 0{,}40 = 0{,}00108\,\mathrm{USD} \\
+\text{sortida} &= 300 / 10^{6} \times 1{,}60 = 0{,}00048\,\mathrm{USD} \\
+\text{una pregunta} &\approx 0{,}0016\,\mathrm{USD}
+\end{align*}
+
+Arrodonit a \textbf{0,002\,USD per pregunta} (dues dècimes de cèntim). Generar un conjunt de flashcards o un qüestionari és \emph{una altra} crida al mateix model, del mateix ordre: no és ``gratis'' respecte al xat, però tampoc és un altre esglaó de preu.
+
+\subsection{Rerank LLM (opcional)}
+
+Si s'activa el rerank amb LLM, abans del xat s'envien candidats (fins a 20, amb uns 500 caràcters cadascun) i el model retorna un JSON d'ordre. Això són $\approx 2500$ tokens d'entrada i $\approx 50$ de sortida $\approx 0{,}001\,\mathrm{USD}$ extra: la pregunta passa d'$\approx 0{,}002$ a $\approx 0{,}003\,\mathrm{USD}$. El p50 de latència del capítol~\ref{cap:resultados} puja $\approx 4\times$ (369\,ms $\rightarrow$ 1608\,ms) perquè s'espera la xarxa; el \emph{preu} no es multiplica per quatre, perquè la sortida del rerank és petita.
+
+\subsection{Escenaris sobre aquest corpus}
+
+La taula~\ref{tab:cost-escenaris} aplica els exemples A i B. ``Estudiant'' vol dir: corpus ja indexat, flags per defecte, sense reindexar.
+
+\begin{table}[htbp]
+\centering
+\caption{Ordre de magnitud del cost d'API OpenAI sobre el corpus de 114 chunks. No és una factura.}
+\label{tab:cost-escenaris}
+\small
+\begin{tabularx}{\textwidth}{X r r}
+\toprule
+Escenari (hipòtesis dels exemples A i B) & USD & Com es treu \\
+\midrule
+Indexar l'assignatura (1 vegada) & 0,0007 & Exemple A \\
+1 pregunta de xat, sense rerank & 0,002 & Exemple B \\
+10 preguntes / mes (un tema) & 0,02 & $10\times$ B \\
+100 preguntes / mes (ús intensiu d'examen) & 0,16 & $100\times$ B \\
+100 preguntes + rerank LLM a totes & 0,26 & $100\times(B+\text{rerank})$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+En conjunt, la dedicació del TFM són milers d'euros; el cost variable d'API d'un estudiant sobre \emph{aquesta} assignatura són \textbf{cèntims de dòlar al mes} si es deixen apagats agentic i rerank. El càlcul és un sostre amb tarifes públiques, no un preu garantit: canvia si OpenAI puja tarifes, si el chunk és més llarg, si el fil de xat reenvia tot l'historial, o si es reindexa el temari cada dia. El que el disseny controla és no encendre per defecte les crides extra (taula~\ref{tab:flags-cost}).

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { FadeIn } from "@/components/motion/fade-in";
 import { CreateSubjectDialog } from "@/components/subjects/create-subject-dialog";
+import { SubjectActionsMenu } from "@/components/subjects/subject-actions-menu";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -95,19 +96,27 @@ export function AppShell({
               </>
             ) : null}
             {subjects?.map((subject) => (
-              <Link
+              <div
                 key={subject.id}
-                href={`/subjects/${subject.id}/documents`}
-                onClick={() => setSubjectId(subject.id)}
                 className={cn(
-                  "cursor-pointer rounded-md px-3 py-2 text-sm transition-all duration-200",
+                  "flex items-center gap-0.5 rounded-md border-l-2 transition-all duration-200",
                   subject.id === subjectId
-                    ? "border-l-2 border-primary bg-accent font-semibold text-accent-foreground"
-                    : "border-l-2 border-transparent text-muted-foreground hover:border-primary/40 hover:bg-secondary hover:text-foreground",
+                    ? "border-primary bg-accent font-semibold text-accent-foreground"
+                    : "border-transparent text-muted-foreground hover:border-primary/40 hover:bg-secondary hover:text-foreground",
                 )}
               >
-                {subject.name}
-              </Link>
+                <Link
+                  href={`/subjects/${subject.id}/documents`}
+                  onClick={() => setSubjectId(subject.id)}
+                  className="min-w-0 flex-1 cursor-pointer truncate px-3 py-2 text-sm"
+                >
+                  {subject.name}
+                </Link>
+                <SubjectActionsMenu
+                  subject={subject}
+                  className="mr-1 shrink-0 text-muted-foreground"
+                />
+              </div>
             ))}
             <CreateSubjectDialog
               trigger={
@@ -160,9 +169,12 @@ export function AppShell({
         {subjectId ? (
           <header className="border-b border-border/80 bg-background/80 px-6 py-4 backdrop-blur-sm">
             <FadeIn y={4}>
-              <h1 className="truncate font-display text-xl font-semibold">
-                {activeSubject?.name || "Asignatura"}
-              </h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="min-w-0 truncate font-display text-xl font-semibold">
+                  {activeSubject?.name || "Asignatura"}
+                </h1>
+                {activeSubject ? <SubjectActionsMenu subject={activeSubject} /> : null}
+              </div>
               <nav className="mt-3 flex flex-wrap gap-1">
                 {MODES.map((mode) => {
                   const Icon = mode.icon;

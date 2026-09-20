@@ -1,0 +1,19 @@
+\begin{tikzpicture}[
+  font=\footnotesize,
+  actor/.style={align=center, font=\small},
+  arr/.style={-{Latex}, thick}
+]
+\node[actor] (ui) {UI};
+\node[actor, right=2.1cm of ui] (api) {API};
+\node[actor, right=2.1cm of api] (db) {Supabase};
+\node[actor, right=2.1cm of db] (wk) {Worker};
+\draw (ui.south) -- ++(0,-3.4);
+\draw (api.south) -- ++(0,-3.4);
+\draw (db.south) -- ++(0,-3.4);
+\draw (wk.south) -- ++(0,-3.4);
+\draw[arr] ([yshift=-0.45cm]ui.south) -- node[above, font=\tiny] {POST upload} ([yshift=-0.45cm]api.south);
+\draw[arr] ([yshift=-0.95cm]api.south) -- node[above, font=\tiny] {PDF + job} ([yshift=-0.95cm]db.south);
+\draw[arr] ([yshift=-1.55cm]wk.south) -- node[above, font=\tiny] {claim\_next} ([yshift=-1.55cm]db.south);
+\draw[arr] ([yshift=-2.15cm]wk.south) -- node[above, font=\tiny] {pipeline 6 etapes} ([yshift=-2.15cm]db.south);
+\draw[arr] ([yshift=-2.75cm]ui.south) -- node[above, font=\tiny] {GET job/doc} ([yshift=-2.75cm]api.south);
+\end{tikzpicture}

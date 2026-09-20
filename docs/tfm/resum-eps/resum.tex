@@ -1,0 +1,195 @@
+% Resum oficial EPS UdL (màxim 2 pàgines A4, sense numeració).
+% Marges, columnes i cossos de lletra seguint Resum-TFG-TFM-Nom-Cognoms.dot
+\documentclass[10pt,a4paper,twoside]{article}
+
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+
+\usepackage[catalan]{babel}
+\usepackage{microtype}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{flushend}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+\geometry{
+  a4paper,
+  twoside,
+  inner=2cm,
+  outer=1.5cm,
+  top=2cm,
+  bottom=2.5cm
+}
+\setlength{\columnsep}{0.5cm}
+\pagestyle{empty}
+\frenchspacing
+\setstretch{1.0}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\floatsep}{8pt}
+\setlength{\textfloatsep}{8pt}
+\setlength{\intextsep}{6pt}
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+
+\titleformat{\section}
+  {\normalfont\fontsize{12}{14}\bfseries\selectfont}
+  {\thesection.}{0.4em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+
+\captionsetup{
+  font={scriptsize,it},
+  labelfont={scriptsize,it},
+  labelsep=period,
+  skip=4pt
+}
+\addto\captionscatalan{%
+  \renewcommand{\figurename}{Fig.}%
+  \renewcommand{\tablename}{Taula}%
+}
+\renewcommand{\figurename}{Fig.}
+\renewcommand{\tablename}{Taula}
+\emergencystretch=1.8em
+\hyphenation{em-ma-ga-tze-ma-tge em-bed-dings Py-PDF Play-wright ground-ed-ness}
+
+\input{dades}
+
+\begin{document}
+\twocolumn[{%
+\begin{center}
+{\fontsize{22}{26}\selectfont\bfseries
+Studyraft: assistent d'estudi basat en generació augmentada per recuperació sobre documents propis\par}
+\vspace{8pt}
+{\fontsize{12}{14}\selectfont \resumAutor\par}
+{\fontsize{12}{14}\selectfont \resumTitulacio\par}
+\vspace{6pt}
+{\fontsize{10}{12}\selectfont Director: \resumDirector\quad \resumDirectorEmail\par}
+{\fontsize{10}{12}\selectfont \resumAfiliacio\par}
+{\fontsize{10}{12}\selectfont \resumAdreca\par}
+{\fontsize{10}{12}\selectfont \resumEmail\par}
+\end{center}
+\vspace{8pt}
+}]
+
+{\fontsize{12}{14}\selectfont\bfseries Resum\par}
+\vspace{4pt}
+Studyraft converteix els PDF propis de l'estudiant en un cicle tancat: ingestió asíncrona, xat amb cites al fragment d'origen, biblioteca de flashcards i qüestionaris, i repàs amb repetició espaiada (SM-2).
+El sistema s'ha reconstruït amb arquitectura hexagonal (FastAPI i Next.js; dades a Supabase amb pgvector i RLS), recuperació híbrida densa, lèxica i fusió RRF, i sinopsi de document activa per defecte.
+El rerank amb LLM i una passada agentic existeixen com a flags, apagats.
+A data d'1 de setembre de 2026 el backend té 63 tests unitaris verds (ruff i mypy nets); el frontend, 4 tests Vitest i 2 smokes Playwright.
+Sobre 114 chunks, el retrieval híbrid té p50 de 369\,ms (8 consultes factuals, $k=10$ en aquell run); amb rerank LLM, 1\,608\,ms.
+L'avaluació mesura programari, latència i un recorregut qualitatiu del cicle; no tanca fidelitat (groundedness).
+
+\vspace{2pt}
+{\fontsize{10}{12}\selectfont\textit{Paraules clau:} RAG, recuperació híbrida, pgvector, arquitectura hexagonal, repetició espaiada, FastAPI, Next.js, RLS.\par}
+
+\section{Introducció}
+Estudiar a partir d'apunts en PDF és el cas d'ús quotidià d'un enginyer, però un model de llenguatge sense recuperació tendeix a al·lucinar i un cercador semàntic sense cites no es pot auditar~[1], [2].
+L'estudiant necessita un sistema que parteixi dels \emph{seus} documents, respongui amb evidència localitzable i converteixi aquest context en pràctica editable (targetes, test, calendari SM-2).
+
+Aquest TFM aporta: (i)~reescriptura hexagonal després d'un prototip LangChain; (ii)~pipeline d'ingestió per etapes relançable; (iii)~RAG híbrid amb cites (fitxer, pàgines, fragment); (iv)~cicle d'estudi a la UI; (v)~protocol de qualitat (tests, tipus, latència).
+Els objectius O1--O5 (requisits, ingestió, recuperació, pràctica SM-2, API/UI) queden implementats; O6 (avaluació) resta parcial: protocol i mesures de programari i latència, sense groundedness ni línia només densa.
+
+\section{Desenvolupament}
+El domini (assignatura, document, fragment, carta, SM-2) no depèn de HTTP ni de SQL.
+Els ports defineixen embeddings, LLM, recuperació i magatzem; FastAPI i els clients Supabase en són adaptadors.
+Això permet tests amb fakes, sense claus de proveïdor, i canviar d'LLM sense reescriure el xat.
+
+L'ingestió és una cua asíncrona dins FastAPI: baixada, parseig PyPDF, trossejat, embeddings, emmagatzematge i sinopsi.
+Cada etapa persisteix estat; un PDF de text buit falla de manera explícita (sense OCR en aquest abast).
+El corpus d'avaluació són apunts reals de l'autor (\emph{Direcció d'empreses tecnològiques i emprenedoria}).
+
+En preguntar, un classificador d'intent (resum / capítol / factual) precedeix la cerca.
+La branca densa enganxa la paràfrasi; la lèxica (FTS de Postgres), els termes literals del PDF; Reciprocal Rank Fusion les fusiona sense un model extra~[3].
+Es prenen 20+20 candidats i $k=8$ fragments al prompt, amb cites a la UI.
+La sinopsi per document està activa; el rerank LLM i una reescriptura agentic, apagats, perquè pugen latència~[4].
+El mateix índex alimenta flashcards, qüestionaris i el planner SM-2~[5].
+L'aïllament per usuari és RLS; l'API verifica el JWT de Supabase.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=2.5pt,
+    minimum width=3.4cm, minimum height=0.72cm},
+  arr/.style={-{Latex[length=1.6mm]}, thick}
+]
+\node[box] (a) {1. Indexar PDF privat};
+\node[box, below=0.18cm of a] (b) {2. Recuperar amb evidència};
+\node[box, below=0.18cm of b] (c) {3. Generar ancorat};
+\node[box, below=0.18cm of c] (d) {4. Repassar SM-2};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\end{tikzpicture}
+\caption{Cicle d'estudi de Studyraft: del PDF propi al repàs programat.}
+\end{figure}
+
+\section{Resultats}
+La taula~\ref{tab:qualitat} recull la qualitat de programari (reproduïble sense OpenAI, tret de Playwright).
+Playwright comprova que landing i login renderitzen; el cicle xat--quiz--planner el demostren captures autenticades, no un E2E del RAG.
+
+\begin{table}[H]
+\centering
+\caption{Qualitat (backend 1/09/2026; frontend 31/08/2026).}
+\label{tab:qualitat}
+{\scriptsize
+\begin{tabular}{ll}
+\toprule
+Comprovació & Resultat \\
+\midrule
+pytest (unitari) & 63 passed \\
+ruff / mypy & nets (77 fitxers mypy) \\
+Vitest / Playwright smoke & 4 tests / 2 passed \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+Sobre 114 chunks i vuit consultes factuals, l'híbrid té p50 de 369\,ms; amb rerank LLM, 1\,608\,ms (taula~\ref{tab:latencia}).
+El run del CLI usava $k=10$; el producte envia $k=8$ al prompt.
+El \texttt{max} de l'híbrid (3\,991\,ms) és la primera consulta, amb el client d'embeddings en fred.
+No s'anota rellevància del top-$k$ ni groundedness de les respostes.
+
+\begin{table}[H]
+\centering
+\caption{Latència de recuperació (8 consultes, 114 chunks, $k=10$, 31/08/2026).}
+\label{tab:latencia}
+{\scriptsize
+\begin{tabular}{lrrr}
+\toprule
+Política & p50 (ms) & max (ms) & chunks \\
+\midrule
+Híbrid (RRF) & 369 & 3991 & 10,0 \\
+Híbrid + rerank LLM & 1608 & 2745 & 10,0 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\section{Conclusions}
+S'ha reconstruït un assistent RAG amb cicle complet ---ingerir, citar, practicar, repassar--- sobre arquitectura hexagonal i aïllament RLS.
+O1--O5 estan implementats; O6 és parcial (tests, p50 de retrieval, recorregut qualitatiu).
+El límit del treball és l'abast de l'avaluació: el sistema es prova com a programari i el retrieval té un p50 en un corpus.
+
+Línies futures: OCR per a PDF escanejats; visor PDF sincronitzat amb la cita; mesura de fidelitat; contrast només dens; cronometrar ingestió i xat extrem a extrem; estudi amb \mbox{alumnes}.
+
+\section*{Referències}
+{\small
+\setlength{\parskip}{2pt}
+\sloppy
+\begin{enumerate}
+\item[{[1]}] P. Lewis \textit{et al.}, ``Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks,'' \textit{NeurIPS}, vol.~33, pp.~9459--9474, 2020.
+\item[{[2]}] Y. Gao \textit{et al.}, ``Retrieval-Augmented Generation for Large Language Models: A Survey,'' arXiv:2312.10997, 2024.
+\item[{[3]}] G.~V. Cormack, C.~L.~A. Clarke i S. Buettcher, ``Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods,'' a \textit{SIGIR}, 2009, pp.~758--759.
+\item[{[4]}] N.~F. Liu \textit{et al.}, ``Lost in the Middle: How Language Models Use Long Contexts,'' \textit{Trans. Assoc. Comput. Linguistics}, vol.~12, pp.~157--173, 2024.
+\item[{[5]}] P.~A. Woźniak, ``Optimization of repetition spacing in the practice of learning,'' 1990. Algorisme SuperMemo~2 (SM-2).
+\end{enumerate}
+}
+
+\end{document}

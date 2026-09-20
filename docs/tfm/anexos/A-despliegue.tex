@@ -1,0 +1,45 @@
+\chapter{Guia de desplegament i reproducció}
+\label{anexo:despliegue}
+
+Aquest annex resumeix com clonar i arrencar l'estat actual. El detall operatiu és al \texttt{README} de l'arrel del repositori.
+
+\section{Repositori}
+
+El codi font d'aquest TFM és a GitHub:
+
+\begin{center}
+\url{https://github.com/yanghao1005/rag-study-assistant}
+\end{center}
+
+\begin{lstlisting}
+git clone https://github.com/yanghao1005/rag-study-assistant.git
+\end{lstlisting}
+
+El dipòsit a secretaria duu, a més, una còpia comprimida del projecte (sense secrets ni dependències instal·lades). El commit de referència és el de la data de lliurament.
+
+\section{Serveis}
+
+Desenvolupament local amb dos processos, o un sol Compose:
+
+\begin{itemize}
+  \item Backend al port 8000 (Uvicorn sobre \texttt{app.main:app}). El worker d'ingestió corre al mateix procés si la ingestió asíncrona és activa.
+  \item Frontend: \texttt{pnpm dev} al directori de l'app (port 3000).
+  \item Alternativa: \texttt{docker compose up --build} des de l'arrel (API 8000, app 3000).
+\end{itemize}
+
+\begin{lstlisting}
+cd backend
+PYTHONPATH=. python -m uvicorn app.main:app --reload --port 8000
+\end{lstlisting}
+
+\section{Migracions}
+
+Aplicar les migracions \texttt{0001}--\texttt{0008} del directori SQL del backend al projecte Supabase (Auth + Storage + pgvector). La 0008 afegeix sinopsi de document i l'historial de ressenyes SM-2.
+
+\section{Variables}
+
+Copia els fitxers d'exemple d'entorn del backend i del frontend. No facis mai commit de secrets. Flags rellevants: RAG jeràrquic, RAG agentic, proveïdor de rerank i proveïdor LLM.
+
+\section{Auth}
+
+Habilita correu i, si s'usa, Google OAuth. Redirect de desenvolupament: \url{http://localhost:3000/auth/callback}.

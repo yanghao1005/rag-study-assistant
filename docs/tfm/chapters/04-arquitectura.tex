@@ -1,0 +1,339 @@
+\chapter{Arquitectura i disseny}
+\label{cap:arquitectura}
+
+Aquest capítol fixa \emph{com} està construït Studyraft i \emph{per què} cada peça existeix. L'ordre de lectura és deliberat: primer l'estructura genèrica (blocs, flux de dades, hexàgon, stack i model relacional); després el \textbf{RAG híbrid} que el producte fa servir de debò (secció~\ref{sec:rag-dos-temps}); al final, el frontend i la taula d'alternatives. El capítol~\ref{cap:desarrollo} concreta rutes, durades d'etapa i prompts.
+
+\section{Vista de context}
+\label{sec:context}
+
+Tres blocs es parlen per contractes HTTP i SQL \parencite{fastapi,nextjs,supabase,pgvector}:
+
+\begin{itemize}
+  \item \textbf{Frontend} (Next.js 16.1, App Router, React 19.2). Interfície de l'estudiant: autenticació, pujada de PDF, xat, biblioteca de pràctica i planner. La sessió va amb \texttt{@supabase/ssr} (cookies HTTP); les llistes, amb TanStack Query; l'estat local (token i PDF seleccionats al xat), amb Zustand. La UI segueix el sistema de disseny Studyraft (shadcn/ui estil New York, Tailwind 4).
+  \item \textbf{Backend} (FastAPI 0.116, Python $\geq$ 3.12). Únic lloc on viuen les claus de model. Implementa els casos d'ús: ingestió asíncrona, recuperació, xat, generació, planner i el worker que processa la cua de PDF.
+  \item \textbf{Plataforma de dades} (Supabase). Auth (identitats i JWT), Postgres amb \texttt{pgvector} (vectors i SQL al mateix lloc), Storage (bytes del PDF) i \textbf{RLS} (polítiques per fila).
+\end{itemize}
+
+El desplegament de desenvolupament és Docker Compose: API al port 8000 i app al 3000. El worker d'ingestió corre dins del procés FastAPI, no com a contenidor a part (secció~\ref{sec:hex-map} i capítol~\ref{cap:desarrollo}): més simple de lliurar en un TFM, més fràgil si el procés es reinicia a mitja ingestió.
+
+\section{Flux de dades}
+\label{sec:flux}
+
+La figura~\ref{fig:flux} mostra els contenidors i qui parla amb qui. El navegador parla amb Next.js; Next.js parla amb FastAPI amb HTTPS i un JWT; FastAPI (i el worker al mateix procés) parlen amb Storage, Postgres i l'LLM. El navegador només té l'\emph{anon key} de Supabase (clau pública de client) i el JWT de sessió (\texttt{Authorization: Bearer}). Les claus de model i la \emph{service role} de Supabase queden al servidor.
+
+\begin{figure}[htbp]
+\centering
+\input{figures/flux}
+\caption{Contenidors i flux: la UI envia JWT a l'API; l'API (amb el worker) llegeix i escriu Storage i Postgres, i és l'únic client de l'LLM.}
+\label{fig:flux}
+\end{figure}
+
+Tres recorreguts comparteixen aquests contenidors i es diferencien en \emph{què} es mou i \emph{quan} es paga el cost.
+
+\paragraph{Sessió.}
+L'estudiant inicia sessió a Next.js contra Auth de Supabase. El middleware refresca les cookies. Cada crida a l'API porta el JWT; el backend en verifica la firma i n'extreu l'identificador d'usuari. A partir d'aquí, tots els recorreguts filtren per aquest identificador i per l'assignatura activa.
+
+\paragraph{Pujar un PDF.}
+La UI envia el fitxer a l'API. L'API el desa a Storage, crea el document en estat \emph{en cua} i un job, i torna de seguida. El worker baixa el PDF, n'extreu el text, el trosseja, calcula embeddings, escriu els chunks i una sinopsi. La llista de documents passa d'\emph{en cua} a \emph{llest}. El cost lent (parse i embeddings) queda fora de la petició HTTP. Detall a la secció~\ref{sec:rag-ingest}.
+
+\paragraph{Preguntar o generar pràctica.}
+La UI envia la pregunta (o la petició de flashcards) a l'API. L'API classifica l'intent, recupera uns quants fragments ja indexats, construeix un prompt amb aquest context i crida l'LLM. La resposta cita fitxer i pàgines; els bytes del PDF no es reenvien al model. El mateix camí de recuperació serveix per generar materials de pràctica. Detall a la secció~\ref{sec:rag-pregunta}.
+
+\paragraph{Exemple.}
+Al corpus del capítol~\ref{cap:resultados}, l'estudiant puja uns apunts de tema; el sistema els indexa. Després pregunta pel contingut o demana flashcards: es consulta l'índex, no es reenvia el PDF.
+
+Aquest tall de responsabilitats és el que fa possible aïllar usuaris, reintentar una ingestió i canviar de proveïdor LLM sense reescriure la UI.
+
+\section{Arquitectura hexagonal}
+\label{sec:hex}
+
+\subsection{Què és}
+
+L'arquitectura hexagonal, o de \emph{ports i adapters}, la va formular Cockburn \parencite{cockburn2005hexagonal} per evitar que la lògica de negoci quedi lligada a un framework, una base de dades o una cua. La imatge mental és un hexàgon: al centre hi ha el \textbf{domini} (regles que no depenen de HTTP ni de SQL); als costats, uns \textbf{ports} (interfícies) i uns \textbf{adaptadors} (implementacions).
+
+Dues direccions:
+
+\begin{description}
+  \item[Costat conductor (\emph{driving}).] Algú \emph{crida} l'aplicació: una petició HTTP, un CLI, un worker. Aquests adaptadors tradueixen el món exterior a una crida a un cas d'ús.
+  \item[Costat conduït (\emph{driven}).] L'aplicació \emph{crida} el món exterior: desar un chunk, demanar un embedding, baixar un PDF. El cas d'ús no importa el client de Supabase ni l'SDK d'OpenAI; importa un port (``necessito cercar vectors'') i un adaptador compleix el contracte.
+\end{description}
+
+La regla útil en un TFM és la \textbf{inversió de dependències}: les fletxes de compilació apunten cap al centre. El domini no importa FastAPI. Un test pot substituir l'adaptador per un \emph{fake} en memòria. Canviar Gemini per OpenAI no reescriu el xat: només el \emph{factory} d'adaptadors.
+
+La regla de comprovació és concreta: un cas d'ús que importi FastAPI o el client de l'LLM ha quedat acoblat al vora; cal moure aquesta dependència a un adaptador.
+
+\subsection{Ports, adaptadors i casos d'ús}
+
+\begin{description}
+  \item[Domini.] Entitats i regles pures. Exemple: SM-2 (\texttt{apply\_sm2}) calcula el pròxim repàs sense tocar la base de dades. Si la fórmula estigués dins d'una ruta HTTP, no es podria provar sense aixecar el servidor.
+  \item[Port.] Una interfície (a Python, una classe abstracta ABC). Exemple: el port d'embeddings exposa \texttt{embed} (textos $\rightarrow$ vectors). El cas d'ús no sap si els vectors venen d'OpenAI.
+  \item[Adaptador.] Una classe que implementa el port parlant amb un sistema real (Supabase, JWT, PyPDF, OpenAI, Gemini).
+  \item[Cas d'ús (\emph{application}).] Orquestra el domini i els ports per completar una tasca: ingestir un PDF, respondre una pregunta, aplicar una ressenya. No coneix l'objecte \texttt{Request} de FastAPI.
+  \item[Entrypoint.] El vora del sistema: rutes HTTP, CLI, bucle del worker. Tradueix JSON $\leftrightarrow$ objectes de cas d'ús.
+  \item[Arrel de composició.] Un únic lloc que llegeix la configuració i \emph{encaixa} cada port amb un adaptador. Si les dependències es creen a cada ruta, l'hexàgon es dilueix.
+\end{description}
+
+\begin{figure}[htbp]
+\centering
+\input{figures/hexagonal}
+\caption{Hexàgon del backend: el costat conductor crida l'aplicació; el conduït és cridat via ports. El domini no importa adaptadors.}
+\label{fig:hex}
+\end{figure}
+
+\subsection{Mapeig al sistema}
+\label{sec:hex-map}
+
+Les capes del backend segueixen l'hexàgon:
+
+\begin{description}
+  \item[Domini] Entitats (assignatura, document, job, artefacte d'estudi, fil de xat, estat SM-2) i la regla SM-2. Càlcul pur: el pròxim repàs no toca la base de dades.
+  \item[Ports] Interfícies: repositoris, embeddings, LLM, parser de PDF, emmagatzematge, retrieval, autenticació.
+  \item[Adaptadors] Implementacions: Postgres/Storage, JWT HS256, OpenAI, Gemini, PyPDF, trossejador semàntic, rerank amb LLM.
+  \item[Casos d'ús] Ingestió, xat, generació de pràctica, planner, política de retrieval, benchmark.
+  \item[Entrypoints] HTTP (llistat a l'annex~\ref{anexo:esquema}), CLI de pipeline i de benchmark, worker d'ingestió.
+  \item[Arrel] Fàbrica que llegeix la configuració i construeix el contenidor d'aplicació.
+\end{description}
+
+Aquesta forma es justifica per \emph{testabilitat} (fakes en memòria, sense xarxa) i per \emph{substitució de proveïdors} (OpenAI o Gemini via fàbrica). El prototip LangChain ajuntava la lògica RAG i el framework d'orquestració: provar un tros exigia simular massa superfície.
+
+\section{Tecnologies de cada bloc}
+
+\paragraph{FastAPI.}
+Framework web asíncron per a APIs JSON. Es tria perquè el contracte (Pydantic) i l'OpenAPI (\texttt{/api/docs}) surten del mateix codi que el tribunal pot inspeccionar, i perquè el \texttt{lifespan} permet engegar el worker d'ingestió al mateix procés.
+
+\paragraph{Next.js (App Router).}
+Framework de React amb rutes per carpetes. Distingeix \textbf{Server Components} (HTML al servidor, sense bundle de client) i components \texttt{'use client'} (interacció). La landing pot ser servidor; el xat amb streaming, no. El middleware amb \texttt{@supabase/ssr} refresca la sessió amb cookies HTTP i protegeix les rutes d'app.
+
+\paragraph{Supabase.}
+BaaS sobre Postgres: Auth emet JWT; Storage guarda el PDF; SQL i \texttt{pgvector} comparteixen transaccions i còpies de seguretat. \textbf{pgvector} és una extensió que afegeix el tipus \texttt{vector} i operadors de distància (cerca per similitud). \textbf{FTS} (full-text search) de Postgres indexa paraules; en aquest projecte s'usa com a branca lèxica, equivalent funcional a BM25 per al rànquing dins del corpus de l'usuari.
+
+\paragraph{JWT.}
+Un JSON Web Token és un document firmat (aquí HS256 amb el secret de Supabase). El backend el verifica a cada petició i n'extreu \texttt{sub} com a identificador d'usuari. Autenticació («ets aquest usuari») i autorització («pots veure aquest document») es distingeixen: la segona es fa filtrant per usuari al cas d'ús \emph{i} amb RLS a Postgres.
+
+\paragraph{RLS.}
+Row Level Security són polítiques SQL que Postgres aplica a cada fila (\texttt{auth.uid()}). El client del navegador, amb la anon key, no pot llegir files d'un altre usuari ni tan sols si endevina l'UUID. El backend usa la service role (que \emph{salta} RLS) i per això \emph{ha} de filtrar a l'aplicació: dues capes, no una de sola.
+
+En una frase: \textbf{RLS protegeix el camí del navegador; l'API es protegeix amb JWT + \texttt{user\_id} al cas d'ús.} Sense el filtre d'aplicació, la service role seria un bypass.
+
+\begin{figure}[htbp]
+\centering
+\input{figures/trust}
+\caption{Frontiera de confiança: el navegador no parla amb l'LLM; l'API verifica el JWT i filtra per usuari; RLS aplica al client Supabase.}
+\label{fig:trust}
+\end{figure}
+
+\section{Model de dades (conceptual)}
+\label{sec:model-dades}
+
+Les taules tanquen el cicle d'estudi. L'assignatura és la unitat d'aïllament: tot el que l'estudiant puja, pregunta o genera penja d'ella (i, a sota, de l'usuari). La figura~\ref{fig:er} ho ordena en \textbf{tres branques} sota \texttt{subjects}, una per cada recorregut de la secció~\ref{sec:flux}.
+
+\begin{figure}[!ht]
+\centering
+\input{figures/er}
+\caption{Model relacional simplificat, ordenat per branca. Les fletxes són cardinalitats 1--N. L'esborrat d'assignatura arrossega documents, artefactes i fils.}
+\label{fig:er}
+\end{figure}
+
+\begin{description}
+  \item[Índex RAG (en pujar).] \texttt{documents} (un PDF, estat d'ingestió, sinopsi opcional) té fills \texttt{jobs} (cua de treball) i \texttt{document\_chunks} (text, pàgines, embedding i camp FTS). Cada job deixa una traça per etapa (\texttt{pipeline\_stage\_runs}: download, parse, \ldots), omesa al dibuix per no saturar-lo. Esborrar l'assignatura arrossega documents i chunks en cascada; si el document desapareix, el job queda amb referència nula i es pot auditar la fallada.
+  \item[Pràctica.] \texttt{study\_artifacts} és un \emph{conjunt} (baralla o qüestionari: títol, origen, recència). En pengen \texttt{flashcards} i \texttt{quiz\_questions}. \texttt{flashcard\_reviews} guarda l'estat SM-2 (qualitat, interval, pròxima data). Un artefacte pot apuntar opcionalment a un document d'origen; el dibuix mostra la relació estable: l'assignatura.
+  \item[Xat (en preguntar).] \texttt{chat\_threads} (un fil per assignatura) i \texttt{chat\_messages} (paper de l'usuari o de l'assistent, cites en JSON). El fil es pot continuar sense reindexar.
+\end{description}
+
+\texttt{profiles} (1:1 amb l'usuari d'Auth) guarda preferències (nom visible, flag agentic). Storage no és una taula: els bytes del PDF viuen al bucket; a Postgres hi ha el camí, l'estat i l'índex.
+
+Vuit migracions SQL, en aquest ordre:
+
+\begin{enumerate}[label=000\arabic*.]
+  \item Extensions (\texttt{pgcrypto}, \texttt{vector}, \texttt{unaccent}).
+  \item Taules nucli (perfils, assignatures, documents, chunks).
+  \item Estudi i cues (artefactes, cartes, preguntes, xat, jobs).
+  \item Funcions de cerca densa i lèxica (RPC).
+  \item RLS i bucket de Storage.
+  \item Neteja d'RPCs de llegat.
+  \item \texttt{claim\_next\_job} públic per al worker.
+  \item Sinopsi de document i historial SM-2.
+\end{enumerate}
+
+El llistat de rutes HTTP és a l'annex~\ref{anexo:esquema}.
+
+\section{El RAG que fa Studyraft}
+\label{sec:rag-dos-temps}
+
+El producte executa un RAG concret. Amb la configuració per defecte del repositori és un \textbf{RAG híbrid amb classificació d'intent i sinopsi de document}:
+
+\begin{itemize}
+  \item \textbf{Sempre actiu:} trossejat + embeddings + FTS; en preguntar, intent (resum / capítol / factual), cerca densa i lèxica fusionades amb RRF ($20+20$ candidats, $k=8$ al prompt), generació ancorada amb cites, i el mateix índex per a flashcards i quiz.
+  \item \textbf{Actiu per defecte:} sinopsi jeràrquica (un resum de 4--6 frases per PDF, generat en pujar).
+  \item \textbf{Apagat per defecte:} rerank amb LLM i passada agentic. Existeixen com a flags (l'agentic també al perfil); el capítol~\ref{cap:resultados} mesura el cost de latència del rerank; el capítol~\ref{cap:gestion} el cost en tokens.
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\caption{Configuració RAG del producte (defecte del repositori).}
+\label{tab:rag-defecte}
+\small
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+Peça & Defecte & Funció \\
+\midrule
+Cerca híbrida dens+FTS+RRF & sempre & Paràfrasi i termes literals del PDF. \\
+Classificació d'intent & sempre & Reescriu, filtra per número al nom de fitxer, o diversifica. \\
+Sinopsi de document & \texttt{true} & Context de temari a preguntes àmplies. \\
+Rerank LLM & \texttt{none} & Opcional; puja el p50 (capítol~\ref{cap:resultados}). \\
+Agentic (1 reescriptura) & \texttt{false} & Opcional; cost i no-determinisme. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Dues fases, un índex}
+
+El RAG clàssic \parencite{lewis2020rag} distingeix \emph{indexar} i \emph{consultar}. Aquí les dues fases tenen costos i errors diferents, i comparteixen l'índex (branca esquerra de la figura~\ref{fig:er}):
+
+\begin{description}
+  \item[En pujar un PDF.] El sistema converteix el fitxer \emph{una vegada} en chunks (vector + text) i una sinopsi. Pot durar desenes de segons; el resultat es persisteix. Després d'això el PDF ja no cal tornar-lo a parsejar.
+  \item[En preguntar.] El sistema llegeix l'índex ja construït, tria $k$ fragments i condiciona l'LLM. Es fa a \emph{cada} petició (xat o generació de pràctica); ha de ser ràpid.
+\end{description}
+
+La figura~\ref{fig:rag-dos-temps} ho dibuixa: la fletxa vertical és l'índex. El capítol~\ref{cap:desarrollo} detalla rutes i durades; aquí es justifica la forma.
+
+\begin{figure}[htbp]
+\centering
+\input{figures/rag-dos-temps}
+\caption{Dues fases del RAG híbrid: l'índex es construeix en pujar el PDF i es consulta a cada pregunta o generació de pràctica.}
+\label{fig:rag-dos-temps}
+\end{figure}
+
+\paragraph{Exemple.}
+Una assignatura d'apunts (el corpus del capítol~\ref{cap:resultados}): l'estudiant puja uns PDF de tema; el sistema els indexa. Més tard pregunta pel contingut, demana un resum del temari o «explica el tema~3». Les subseccions següents detallen cada fase en general i tanquen amb aquest tipus d'exemple.
+
+\subsection{Quines solucions es van considerar}
+
+Tres dissenys parlen amb un LLM; diferencien què entra al prompt i \emph{quan} es paga el cost.
+
+\paragraph{Enviar el PDF sencer a cada pregunta.}
+El model veuria tot el temari a cada consulta. En desenes de pàgines el cost de tokens explota, la finestra de context se satura i desapareixen les cites per pàgina. Diversos PDF de la mateixa assignatura no caben. Es va descartar d'entrada.
+
+\paragraph{RAG dens d'una sola peça.}
+Es trosseja, s'embeddeix i, a la pregunta, es recuperen els $k$ veïns més propers \parencite{lewis2020rag,karpukhin2020dpr}. El prototip LangChain anava per aquí: una cadena indexar-i-preguntar, poc aïllament per assignatura. Sobre apunts reals apareixen forats sistemàtics:
+
+\begin{itemize}
+  \item Una pregunta àmplia («de què va aquest tema?») recupera el chunk la redacció del qual s'assembla a «tema» o a la presentació de l'assignatura, no una visió del temari. L'índex només veu frases.
+  \item «Explica el tema~$n$» falla si el número és al nom del fitxer i no al text del chunk.
+  \item Sigles, títols de model i identificadors copiats del PDF escapen de l'embedding i es troben millor amb cerca lèxica \parencite{robertson2009probabilistic}.
+  \item Sense filtre per usuari i assignatura, el veí més proper pot ser d'un altre temari.
+  \item Parsejar i embeddir diversos PDF dins de la petició de pujada deixa la UI en espera uns minuts; si el procés cau, l'índex queda a mitges.
+\end{itemize}
+
+\paragraph{El que s'ha adoptat.}
+Indexar en cua (fase de pujar) i consultar amb \textbf{intent + híbrid dens/lèxic + sinopsi} (fase de preguntar). És el RAG de la taula~\ref{tab:rag-defecte}. El mateix índex alimenta xat, flashcards i quiz: l'embedding es paga un cop. L'hexàgon (secció~\ref{sec:hex}) permet provar cada baula amb fakes.
+
+\subsection{En pujar un PDF}
+\label{sec:rag-ingest}
+
+La petició HTTP només desa el fitxer a Storage, crea el document en estat \emph{en cua} i encola un job: el navegador no espera el parse. El worker (al mateix procés FastAPI) reclama el job i recorre les sis etapes de la figura~\ref{fig:pipeline} (capítol~\ref{cap:desarrollo}). Cada etapa deixa traça (èxit, error, durada) per reintentar des del punt de fallada.
+
+\begin{enumerate}
+  \item \textbf{Download.} El worker llegeix els bytes des de Storage. El PDF pot haver-se pujat fa estona; no es confia en un fitxer temporal del procés web.
+  \item \textbf{Parse.} S'extreu el text \emph{per pàgina}. El número de pàgina és el que farà verificable la cita. Un escaneig (imatge) dóna text buit i l'etapa falla de manera visible; l'OCR queda fora d'abast.
+  \item \textbf{Chunk.} Un PDF de desenes de pàgines no entra sencer al retriever. Es parteix preferint capçaleres, paràgrafs i oracions, màxim 1200 caràcters i solapament 150, per no tallar una definició a mitges ni perdre el fet al mig d'un context llarg \parencite{liu2024lost,barnett2024seven}. Cada fragment guarda pàgina inicial i final.
+  \item \textbf{Embed.} Cada chunk es converteix en un vector (1536 dimensions, \emph{embedding-3-small}). Aquest cost es paga \emph{ara}, no a cada pregunta. El text cru es conserva: cal per a FTS i per mostrar el snippet.
+  \item \textbf{Store.} S'escriuen els chunks filtrables per usuari i assignatura. El document passa a \emph{llest}. A partir d'aquí ja es pot recuperar.
+  \item \textbf{Synopsis.} Un LLM resumeix el PDF en 4--6 frases. És el context de \emph{document}: una pregunta àmplia pot llegir aquesta sinopsi en lloc del veí d'una sola frase. Per defecte l'etapa corre; si es desactiva el flag, l'índex de chunks continua sent vàlid.
+\end{enumerate}
+
+L'ordre és rígid: cal text abans de trossejar, i fragments abans d'embeddir. El capítol~\ref{cap:desarrollo} descriu el worker, els estats de la UI i el reintent.
+
+\paragraph{Exemple.}
+L'estudiant puja un PDF d'apunts d'una assignatura (al corpus del capítol~\ref{cap:resultados}, 114~chunks en total). La UI torna de seguida amb l'estat \emph{en cua}; al cap d'una estona el document és \emph{llest}, amb fragments per pàgina i una sinopsi del tipus «aquest document recorre els blocs del temari\ldots». Si el parse no n'extreu text, l'estat passa a error i es pot reintentar.
+
+\subsection{En preguntar}
+\label{sec:rag-pregunta}
+
+El document ha de ser \emph{llest}. Si encara és \emph{en cua}, el producte ho indica; el sistema no ha de respondre amb coneixement genèric del model.
+
+Donada una pregunta i un filtre (usuari, assignatura, opcionalment una llista de PDF), el camí per defecte és:
+
+\begin{enumerate}
+  \item \textbf{Autenticar i autoritzar.} JWT; el retriever només veu files d'aquest usuari i d'aquesta assignatura.
+  \item \textbf{Classificar l'intent.} \emph{Resum} (pregunta àmplia sobre el temari), \emph{capítol} (número de tema, sovint al nom del fitxer) o \emph{factual} (la resta). L'intent va \emph{abans} de cercar: un resum resolt com a veí dens de la paraula «resumeix» torna un fragment irrellevant.
+  \item \textbf{Preparar la consulta.} Segons l'intent es reescriu la pregunta, es restringeix als PDF numerats d'un tema, o es diversifica per document perquè no guanyi un sol apunt.
+  \item \textbf{Cercar en híbrid} (secció~\ref{sec:rag-hibrid}): branca densa i branca lèxica, fusionades amb RRF ($20+20$, $k=8$ al context).
+  \item \textbf{Enriquir amb sinopsis} (per defecte actiu): el prompt porta un índex curt del temari, a més dels chunks.
+  \item \textbf{Generar ancorat.} El prompt obliga a respondre només amb el context i a citar~\texttt{[n]}. Cada chunk s'envia a la UI amb fitxer, pàgines i un snippet de 280 caràcters.
+  \item \textbf{Desar el fil} si l'usuari continua la conversa. El rerank i l'agentic, apagats per defecte, s'inseririen després del RRF.
+\end{enumerate}
+
+\begin{figure}[htbp]
+\centering
+\input{figures/retrieval}
+\caption{En preguntar (defecte): intent, embedding de la consulta, cerca híbrida, fusió RRF i generació amb cites. El rerank és opcional i ve després del RRF.}
+\label{fig:retrieval}
+\end{figure}
+
+Flashcards i quiz reutilitzen aquesta recuperació i afegeixen un filtre \emph{lecture-focused}: s'exclouen PDF administratius (guia docent) i ítems logístics (ECTS, horari) després de l'LLM. L'índex es paga un cop.
+
+\paragraph{Exemple.}
+Sobre el mateix corpus d'apunts, tres preguntes típiques d'estudi:
+
+\begin{itemize}
+  \item \emph{Factual} («què diu el temari d'aquest concepte?»): FTS enganxa termes copiats del PDF; l'embedding enganxa la paràfrasi. RRF deixa 8~chunks amb pàgina; la UI mostra el nom del fitxer i el snippet.
+  \item \emph{Resum} («de què va aquest tema?»): es reescriu la consulta, es diversifica per document i s'injecten les sinopsis, perquè la resposta cobreixi el temari i no una sola diapositiva.
+  \item \emph{Capítol} («explica el tema~3»): es filtra pels PDF el nom dels quals comença pel número, encara que el número no aparegui al text dels chunks.
+\end{itemize}
+
+\subsection{Cerca híbrida: dens, lèxic i RRF}
+\label{sec:rag-hibrid}
+
+Un \textbf{embedding} és un vector que representa el \emph{sentit} d'un text. Dos fragments sobre el mateix concepte queden a prop encara que no comparteixin paraules \parencite{karpukhin2020dpr}. A Postgres ho fa \texttt{pgvector}. Serveix per a paràfrasis.
+
+La cerca lèxica (FTS / família BM25) puntua la coincidència de termes \parencite{robertson2009probabilistic}. Serveix per a sigles, títols de model i números que l'estudiant copia del PDF.
+
+Reciprocal Rank Fusion combina les dues llistes sense entrenar un model \parencite{cormack2009rrf}: per a cada fragment se suma $1/(k + r)$ on $r$ és la posició a cada llista i $k=60$. El sistema recupera 20 chunks densos i 20 lèxics i en deixa 8 al context (\texttt{RETRIEVAL\_FINAL\_TOP\_K}, quan la crida no en força un altre). Un model de rerank entrenat exigiria un corpus anotat que aquest TFM no té; el rerank amb LLM, si s'encén, reordena aquest top-$k$ ja fusionat.
+
+\paragraph{Exemple.}
+Una pregunta en paraules de l'estudiant activa sobretot la branca densa; la mateixa pregunta amb la sigla o el títol tal com surt a l'apunt activa la lèxica. La fusió RRF és el que fa que el prompt vegi les dues.
+
+\section{Disseny del frontend}
+
+L'App Router organitza l'estudi per URL: llista d'assignatures (\texttt{/subjects}); dins de cada una, documents, xat, flashcards, quiz i planner; a més, \texttt{/settings}. Auth: \texttt{/login}, recuperació de contrasenya, callback i onboarding. El middleware protegeix les rutes d'aplicació.
+
+Cada pantalla correspon a una branca del model (secció~\ref{sec:model-dades}): documents mostra l'estat de la pujada; el xat i la generació de pràctica disparen la consulta a l'índex; el planner llegeix \texttt{flashcard\_reviews}. Convencions de producte: una tasca per pantalla; paleta Nordic Desk; copy en castellà de tu.
+
+TanStack Query cacheja llistes (assignatures, documents, artefactes) i les invalida després d'una mutació: després de pujar un PDF, la llista torna a demanar l'estat fins que el document és \emph{llest}. Zustand guarda el que no és servidor: token de sessió i quins PDF estan seleccionats al xat (filtre opcional de la consulta).
+
+La biblioteca de flashcards i qüestionaris comparteix un component compost (mateixa llista, recència, menú) i dos editors específics: així cada variant declara el que mostra, sense una combinació de modes booleans.
+
+\section{Convencions i guies aplicades}
+
+El desenvolupament s'ha guiat per bones pràctiques de dades, d'arquitectura i de frontend:
+
+\begin{itemize}
+  \item \textbf{Hexagonal} \parencite{cockburn2005hexagonal}: el cas d'ús no importa FastAPI ni el client Supabase.
+  \item \textbf{Supabase / Postgres:} RLS a totes les taules exposades, Storage amb polítiques, JWT verificat al backend, cerca vectorial + FTS, migracions versionades al git.
+  \item \textbf{React / Next.js:} \texttt{optimizePackageImports} per a \texttt{lucide-react} i \texttt{motion} (evitar importar tot el catàleg d'icones); transicions (\texttt{useTransition}) en mutacions; Query amb \texttt{staleTime}; \texttt{output: "standalone"} per Docker.
+  \item \textbf{Composició:} variants explícites (editor de cartes vs editor de quiz) en lloc d'un component amb molts booleans.
+\end{itemize}
+
+\section{Decisions clau}
+
+\begin{table}[htbp]
+\centering
+\caption{Decisions de disseny i alternatives descartades.}
+\label{tab:decisiones}
+\small
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+Decisió & Alternativa & Motiu \\
+\midrule
+RAG híbrid + intent + sinopsi & RAG dens d'una peça, o PDF sencer a l'LLM & Paràfrasi, sigles i «tema~$n$» als apunts. \\
+Indexar en cua (en pujar) & Indexar dins la petició HTTP & UI no bloquejada; índex reutilitzable. \\
+Hexagonal + FastAPI & LangChain monolític & Testabilitat i ports; el llegat usava LangChain. \\
+Supabase pgvector & Pinecone / Weaviate & Un sol proveïdor (Auth+SQL+Storage); RLS. \\
+SM-2 al domini & FSRS / Anki Connect & Pur, auditable, suficient per a l'MVP. \\
+Next.js + Supabase SSR & SPA pura & Cookies de sessió i middleware d'auth. \\
+TanStack Query & SWR / fetch ad hoc & Cau i invalidació per assignatura i artefacte. \\
+Biblioteca de sets & Només l'última generació & L'estudiant reutilitza i edita materials. \\
+\bottomrule
+\end{tabularx}
+\end{table}

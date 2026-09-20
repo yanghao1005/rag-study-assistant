@@ -484,7 +484,7 @@ class FakeRetrieval(VectorSearchPort):
         query_text: str,
         query_embedding: list[float],
         filters: RetrievalFilters,
-        match_count: int = 10,
+        match_count: int | None = None,
     ) -> HybridRetrievalResult:
         scoped = filters.resolved_document_ids()
         if scoped and "doc-1" not in scoped:

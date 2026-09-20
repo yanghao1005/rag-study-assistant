@@ -1,0 +1,17 @@
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=4pt, minimum height=0.85cm},
+  arr/.style={-{Latex}, thick}
+]
+\node[box] (a) {download};
+\node[box, right=0.35cm of a] (b) {parse};
+\node[box, right=0.35cm of b] (c) {chunk};
+\node[box, right=0.35cm of c] (d) {embed};
+\node[box, right=0.35cm of d] (e) {store};
+\node[box, right=0.35cm of e] (f) {synopsis};
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\draw[arr] (d) -- (e);
+\draw[arr] (e) -- (f);
+\end{tikzpicture}

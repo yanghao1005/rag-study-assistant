@@ -77,7 +77,10 @@ class VectorSearchPort(ABC):
         query_text: str,
         query_embedding: list[float],
         filters: RetrievalFilters,
-        match_count: int = 10,
+        match_count: int | None = None,
     ) -> HybridRetrievalResult:
-        """Dense + lexical retrieval merged via RRF (rerank optional in adapter)."""
+        """Dense + lexical retrieval merged via RRF (rerank optional in adapter).
+
+        If ``match_count`` is omitted, the adapter uses ``RETRIEVAL_FINAL_TOP_K``.
+        """
         ...

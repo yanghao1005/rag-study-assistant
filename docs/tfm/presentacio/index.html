@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ca">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Studyraft — defensa TFM · Hao Yang</title>
+    <link rel="stylesheet" href="css/theme.css?v=5" />
+  </head>
+  <body>
+    <p class="help">F pantalla · N notes · ← →</p>
+    <div class="deck">
+      <section class="slide active">
+        <div class="frame">
+          <p class="kicker">Treball de Fi de Màster · EPS UdL</p>
+          <h1>Studyraft</h1>
+          <p class="lede">Assistent d’estudi RAG sobre documents propis. Un cicle, no un xat.</p>
+          <p class="meta">
+            <strong>Hao Yang</strong><br />
+            Màster universitari en Enginyeria Informàtica<br />
+            Director: Jordi Planes Cid · setembre 2026
+          </p>
+        </div>
+        <aside class="notes">
+          Una frase: parteix dels PDF de l’estudiant i tanca fins al repàs. No llegeixis l’índex de la memòria.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Problema</p>
+          <h2>Estudiar d’un PDF no és un xat.</h2>
+          <ul class="stack center-text">
+            <li class="problem fragment">Un LLM <em>sense recuperació</em> al·lucina.</li>
+            <li class="problem fragment">Un cercador <em>sense cites</em> no s’audita.</li>
+            <li class="problem fragment">Unes flashcards <em>sense calendari</em> no consoliden.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          Calen documents teus, evidència localitzable i pràctica amb repàs.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Cicle</p>
+          <h2>Quatre baules encadenades.</h2>
+          <div class="cycle">
+            <div class="cycle-step fragment"><span>01</span><strong>Indexar</strong></div>
+            <div class="cycle-step fragment"><span>02</span><strong>Recuperar</strong></div>
+            <div class="cycle-step fragment"><span>03</span><strong>Generar</strong></div>
+            <div class="cycle-step fragment"><span>04</span><strong>Repassar</strong></div>
+          </div>
+          <p class="lede fragment">La literatura cubreix cada baula. El forat és tancar-les com a sistema.</p>
+        </div>
+        <aside class="notes">
+          Aquest cicle articula tot l’estat de l’art. Si una baula falta, el producte es trenca.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Estat de l’art · RAG</p>
+          <h2>De l'LLM nu a evidència externa.</h2>
+          <p class="lede">Lewis et al. (2020): retriever + generador condicionat als documents recuperats.</p>
+          <div class="cards">
+            <article class="card fragment">
+              <span>Promesa</span>
+              <strong>Menys al·lucinació</strong>
+              <p>La resposta depèn d’un context, no només dels paràmetres.</p>
+            </article>
+            <article class="card fragment">
+              <span>Gao 2024</span>
+              <strong>El retriever mana</strong>
+              <p>La qualitat depèn més de què es recupera que de la mida del model.</p>
+            </article>
+            <article class="card fragment">
+              <span>Aquest TFM</span>
+              <strong>No cal un model fronterer</strong>
+              <p>Cal un retriever honest, cites i un prompt que no inventi.</p>
+            </article>
+          </div>
+        </div>
+        <aside class="notes">
+          RAG cobreix preguntar (baules 2 i 3). Encara no diu com s’indexa un PDF de classe ni com es practica després.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Estat de l’art · indexar</p>
+          <h2>El tall del chunk decideix el que es pot citar.</h2>
+          <div class="table-wrap fragment">
+            <table>
+              <thead>
+                <tr>
+                  <th>Estratègia</th>
+                  <th>Idea</th>
+                  <th>Risc</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Finestra fixa</td>
+                  <td>N caràcters</td>
+                  <td>Talla definicions</td>
+                </tr>
+                <tr>
+                  <td>Per capçaleres</td>
+                  <td>Una secció ≈ un chunk</td>
+                  <td>Molts apunts no tenen títols</td>
+                </tr>
+                <tr class="hl">
+                  <td>Studyraft</td>
+                  <td>Cascada, 1200 / solapament 150</td>
+                  <td>Sense OCR</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="lede fragment">Capçaleres → paràgrafs → oracions → tall dur. Barnett: els primers fallos d’un RAG són d’índex, no de l'LLM.</p>
+        </div>
+        <aside class="notes">
+          No inventem un algorisme de chunking. El solapament 150 evita frases partides. Un escaneig no genera chunks.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Estat de l’art · recuperar</p>
+          <h2>Dos senyals. Un corpus d’apunts els barreja.</h2>
+          <div class="signal-grid">
+            <article class="signal fragment">
+              <span>Dens</span>
+              <strong>Paràfrasi</strong>
+              <p>Embeddings + pgvector. «Què és el potencial d’acció?»</p>
+            </article>
+            <article class="signal fragment">
+              <span>Lèxic</span>
+              <strong>Termes rars</strong>
+              <p>FTS / família BM25. Sigles, fórmules, còpia literal del PDF.</p>
+            </article>
+            <article class="signal fragment">
+              <span>Fusió</span>
+              <strong>RRF</strong>
+              <p>Uneix llistes sense entrenar un model. El rerank LLM és un extra car.</p>
+            </article>
+          </div>
+        </div>
+        <aside class="notes">
+          Quedar-se només amb embeddings deixa escapar el que l’estudiant copia del PDF. Rerank: p50 de 369 a 1608 ms.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Estat de l’art · fidelitat</p>
+          <h2>Recuperar un chunk no prova la frase.</h2>
+          <ul class="stack center-text">
+            <li class="fragment">La <em class="hl-word">groundedness</em> exigeix que cada afirmació estigui al context.</li>
+            <li class="fragment">RAGAS / faithfulness: aquest TFM <em class="hl-word">no la tanca</em>.</li>
+            <li class="fragment">El que sí fem: prompt tancat, cites amb snippet, filtre lecture-focused.</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          Enginyeria de producte, no una prova de fidelitat. Digues-ho abans que t’ho preguntin.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Estat de l’art · literatura vs mercat</p>
+          <h2>Cada sistema tanca un tros.</h2>
+          <div class="table-wrap fragment">
+            <table>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>PDF propis</th>
+                  <th>Cites</th>
+                  <th>Pràctica</th>
+                  <th>SRS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>PaperQA</td>
+                  <td>papers</td>
+                  <td>sí</td>
+                  <td>no</td>
+                  <td>no</td>
+                </tr>
+                <tr>
+                  <td>Anki / SM-2</td>
+                  <td>no natiu</td>
+                  <td>no</td>
+                  <td>sí</td>
+                  <td>sí</td>
+                </tr>
+                <tr>
+                  <td>NotebookLM</td>
+                  <td>sí</td>
+                  <td>sí</td>
+                  <td>limitat</td>
+                  <td>no</td>
+                </tr>
+                <tr class="hl">
+                  <td>Studyraft</td>
+                  <td>sí</td>
+                  <td>sí</td>
+                  <td>sí</td>
+                  <td>SM-2</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="lede fragment">No és un ranking. Tampoc un ITS: no modelem l’alumne més enllà del calendari.</p>
+        </div>
+        <aside class="notes">
+          PaperQA comparteix cites; Anki comparteix SRS. El forat és la integració sobre apunts privats.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Posicionament</p>
+          <h2>Integració avaluable, no un algoritme nou.</h2>
+          <p class="lede fragment">Indexar, citar, practicar i repassar sobre PDF privats, amb límits visibles i tests.</p>
+        </div>
+        <aside class="notes">
+          Ni retrieval de primer nivell ni un nou model de memòria. Això obre l’arquitectura.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Contribucions</p>
+          <h2>Què queda al producte</h2>
+          <ul class="stack">
+            <li class="fragment">Hexàgon després d’un prototip LangChain</li>
+            <li class="fragment">Ingestió per etapes, relançable</li>
+            <li class="fragment">RAG híbrid + intent + sinopsi</li>
+            <li class="fragment">Biblioteca de pràctica i planner SM-2</li>
+            <li class="fragment">Protocol: tests, latència, recorregut qualitatiu</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          L’hexàgon permet tests sense claus i canviar d’OpenAI a Gemini sense reescriure el xat.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Objectius</p>
+          <h2>O1–O5 fets. O6, parcial.</h2>
+          <ul class="stack center-text">
+            <li class="fragment">O1–O5: API + UI + test</li>
+            <li class="fragment">O6: protocol executat, <em class="hl-word">parcial</em></li>
+            <li class="fragment">Obert: fidelitat, només dens, ingestió, xat E2E, alumnes</li>
+          </ul>
+        </div>
+        <aside class="notes">
+          O6 no es tanca amb un pytest. Digues «parcial» ara.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Arquitectura</p>
+          <h2>El cas d’ús no coneix HTTP.</h2>
+          <div class="hex">
+            <div class="col fragment">
+              <div class="col-label">Conductor</div>
+              <div class="pill">HTTP · FastAPI</div>
+              <div class="pill">CLI</div>
+              <div class="pill">Worker</div>
+            </div>
+            <div class="col fragment">
+              <div class="col-label">Nucli</div>
+              <div class="pill core">Ports</div>
+              <div class="pill core">Casos d’ús</div>
+              <div class="pill core">Domini · SM-2</div>
+            </div>
+            <div class="col fragment">
+              <div class="col-label">Conduït</div>
+              <div class="pill">Postgres / pgvector</div>
+              <div class="pill">OpenAI / Gemini</div>
+              <div class="pill">Storage / PyPDF</div>
+            </div>
+          </div>
+        </div>
+        <aside class="notes">
+          SM-2 al domini: aquesta carta surt avui perquè q &lt; 3. RLS aïlla usuaris.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · dues fases</p>
+          <h2>L’índex es paga un cop. La pregunta el reutilitza.</h2>
+          <div class="two-col">
+            <article class="card fragment">
+              <span>En pujar</span>
+              <strong>Construir l’índex</strong>
+              <p>Parse, chunks (vector + FTS), sinopsi de 4–6 frases. Desenes de segons, fora de l’HTTP.</p>
+            </article>
+            <article class="card fragment">
+              <span>En preguntar</span>
+              <strong>Consultar l’índex</strong>
+              <p>Intent, híbrid, cites. Els bytes del PDF no es reenvien al model. El mateix camí serveix el quiz.</p>
+            </article>
+          </div>
+        </div>
+        <aside class="notes">
+          L’embedding es paga un cop. Xat, flashcards i quiz mengen el mateix índex.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · ingestió</p>
+          <h2>Sis etapes. Relançables.</h2>
+          <div class="pipeline">
+            <span class="pipe fragment">download</span><span class="pipe-arrow fragment">→</span>
+            <span class="pipe fragment">parse</span><span class="pipe-arrow fragment">→</span>
+            <span class="pipe fragment">chunk</span><span class="pipe-arrow fragment">→</span>
+            <span class="pipe fragment">embed</span><span class="pipe-arrow fragment">→</span>
+            <span class="pipe fragment">store</span><span class="pipe-arrow fragment">→</span>
+            <span class="pipe fragment">synopsis</span>
+          </div>
+          <p class="lede fragment">Parse buit = error honest. No hi ha OCR. Cada etapa deixa traça de durada i fallada.</p>
+        </div>
+        <aside class="notes">
+          El navegador no espera el parse. El worker reclama el job al mateix FastAPI.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · configuració de producte</p>
+          <h2>Què està encès de debò.</h2>
+          <div class="table-wrap fragment">
+            <table>
+              <thead>
+                <tr>
+                  <th>Peça</th>
+                  <th>Estat</th>
+                  <th>Per què</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="hl">
+                  <td>Híbrid dens + FTS + RRF</td>
+                  <td>sempre</td>
+                  <td>Paràfrasi i literals del PDF</td>
+                </tr>
+                <tr class="hl">
+                  <td>Intent resum / capítol / factual</td>
+                  <td>sempre</td>
+                  <td>Abans de cercar</td>
+                </tr>
+                <tr class="hl">
+                  <td>Sinopsi jeràrquica</td>
+                  <td>defecte ON</td>
+                  <td>Preguntes àmplies</td>
+                </tr>
+                <tr>
+                  <td>Rerank LLM / agentic</td>
+                  <td>defecte OFF</td>
+                  <td>Latència i cost</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <aside class="notes">
+          No venguis l’agentic com a camí principal. Una sola reescriptura, flag al perfil.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · intent</p>
+          <h2>L’intent va abans de cercar.</h2>
+          <div class="cards">
+            <article class="card fragment">
+              <span>Factual</span>
+              <strong>Un concepte</strong>
+              <p>FTS enganxa el terme copiat; l’embedding, la paràfrasi. RRF deixa 8 chunks amb pàgina.</p>
+            </article>
+            <article class="card fragment">
+              <span>Resum</span>
+              <strong>De què va el tema</strong>
+              <p>Es reescriu la consulta, es diversifica per document i s’injecten sinopsis.</p>
+            </article>
+            <article class="card fragment">
+              <span>Capítol</span>
+              <strong>Tema n</strong>
+              <p>Filtre pel número al nom de fitxer. «Explica el tema 3» no és un veí dens de «explica».</p>
+            </article>
+          </div>
+        </div>
+        <aside class="notes">
+          Un resum resolt com a veí de la paraula «resumeix» torna un fragment irrellevant.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · híbrid</p>
+          <h2>Vint densos, vint lèxics, vuit al prompt.</h2>
+          <div class="flow">
+            <div class="flow-row fragment">
+              <span class="chip">Pregunta</span><span class="pipe-arrow">→</span>
+              <span class="chip">Intent</span><span class="pipe-arrow">→</span>
+              <span class="chip">Embedding</span><span class="pipe-arrow">→</span>
+              <span class="chip">20 dens + 20 FTS</span>
+            </div>
+            <div class="flow-row fragment">
+              <span class="chip">RRF</span><span class="pipe-arrow">→</span>
+              <span class="chip">k = 8</span><span class="pipe-arrow">→</span>
+              <span class="chip opt">rerank</span><span class="pipe-arrow">→</span>
+              <span class="chip">cites + LLM</span>
+            </div>
+          </div>
+          <p class="formula fragment">RRF = Σ 1 / (<b>60</b> + rang) &nbsp;·&nbsp; producte k = 8</p>
+        </div>
+        <aside class="notes">
+          k=60 és la constant clàssica de Cormack. El CLI del bench va mesurar k=10; el producte usa 8. No confonguis les dues k.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · sinopsi</p>
+          <h2>Un resum de document, no només el veí d’una frase.</h2>
+          <p class="lede fragment">4–6 frases per PDF en pujar. Una pregunta àmplia llegeix el temari, no una sola diapositiva.</p>
+          <p class="lede fragment">Si es desactiva el flag, l’índex de chunks continua sent vàlid.</p>
+        </div>
+        <aside class="notes">
+          Índex jeràrquic barat. No és un agent. L’agentic, si s’encén, seria una sola reescriptura després del RRF.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">RAG · confiança</p>
+          <h2>Cites, no fluïdesa.</h2>
+          <div class="cite-grid">
+            <div class="cite-card fragment"><span>01</span><strong>Fitxer</strong></div>
+            <div class="cite-card fragment"><span>02</span><strong>Pàgines</strong></div>
+            <div class="cite-card fragment"><span>03</span><strong>Fragment</strong></div>
+          </div>
+          <p class="lede fragment">Lecture-focused: el context ve dels apunts, no d’un corpus web.</p>
+        </div>
+        <aside class="notes">
+          La UI mostra snippet. Això redueix superfície d’invenció; no mesura faithfulness.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Demo</p>
+          <h2>Un sol recorregut. Local.</h2>
+          <div class="demo-verbs">
+            <div class="fragment">Indexar</div>
+            <div class="fragment">Preguntar</div>
+            <div class="fragment">Practicar</div>
+            <div class="fragment">Repassar</div>
+          </div>
+        </div>
+        <aside class="notes">
+          Alt+Tab. PDF ja Listo. Si peta, captures. No reinstal·lis.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Demo · guió</p>
+          <h2>El mateix PDF. Quatre batecs.</h2>
+          <ul class="stack">
+            <li class="fragment">Documents en estat Listo</li>
+            <li class="fragment">Pregunta factual → fitxer i pàgines</li>
+            <li class="fragment">Obre un conjunt de la biblioteca</li>
+            <li class="fragment">Ressenya SM-2: el planner diu el proper dia</li>
+          </ul>
+        </div>
+        <aside class="notes">No generis de zero si triga. Wi‑Fi UdL = pla B.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Xarxa · documents</p>
+          <h2>Indexats. Listo.</h2>
+          <figure class="shot">
+            <img src="../figures/screenshots/04-documents.png" alt="Documents indexats en estat Listo" />
+          </figure>
+        </div>
+        <aside class="notes">L’assignatura test a la barra no és el corpus del benchmark.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Xarxa · xat</p>
+          <h2>Resposta amb evidència.</h2>
+          <figure class="shot">
+            <img src="../figures/screenshots/05-chat.png" alt="Xat amb cites" />
+          </figure>
+        </div>
+        <aside class="notes">Contactes al fragment tapats com a la memòria.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Xarxa · pràctica</p>
+          <h2>Biblioteca persistent.</h2>
+          <figure class="shot">
+            <img src="../figures/screenshots/07-flashcards.png" alt="Biblioteca de flashcards" />
+          </figure>
+        </div>
+        <aside class="notes">Conjunts amb títol, editables. No un test efímer al xat.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Xarxa · planner</p>
+          <h2>SM-2 al domini.</h2>
+          <figure class="shot">
+            <img src="../figures/screenshots/08-planner.png" alt="Planner SM-2" />
+          </figure>
+        </div>
+        <aside class="notes">Traçable: no un cron misteriós.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Avaluació · programari</p>
+          <h2>Es prova com a sistema.</h2>
+          <div class="metrics">
+            <div class="metric fragment"><b>63</b><span>pytest · 1/09</span></div>
+            <div class="metric fragment"><b>0</b><span>ruff / mypy</span></div>
+            <div class="metric fragment"><b>4</b><span>Vitest</span></div>
+            <div class="metric fragment"><b>2</b><span>Playwright smoke</span></div>
+          </div>
+          <p class="lede fragment">Playwright no executa el RAG. El cicle el demostra la demo.</p>
+        </div>
+        <aside class="notes">77 fitxers mypy. Vitest són contractes, no cada pantalla.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Avaluació · retrieval · 31/08/2026</p>
+          <h2>El p50 apaga el rerank.</h2>
+          <p class="lede">8 consultes factuals · 114 chunks · k = 10 al CLI (producte k = 8)</p>
+          <div class="table-wrap fragment">
+            <table>
+              <thead>
+                <tr>
+                  <th>Política</th>
+                  <th>p50</th>
+                  <th>max</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="hl">
+                  <td>Híbrid RRF</td>
+                  <td>369 ms</td>
+                  <td>3991 ms</td>
+                </tr>
+                <tr>
+                  <td>Híbrid + rerank LLM</td>
+                  <td>1608 ms</td>
+                  <td>2745 ms</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="lede fragment">El max 3991 ms és la primera consulta, en fred. No afirmis rellevància.</p>
+        </div>
+        <aside class="notes">
+          El rerank es va mesurar després, model calent. Compareu només el p50.
+        </aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Límits</p>
+          <h2>Què no afirma aquesta avaluació</h2>
+          <ul class="stack center-text">
+            <li class="fragment">Sense línia «només dens»</li>
+            <li class="fragment">Sense mètrica de fidelitat</li>
+            <li class="fragment">Sense temps d’ingestió ni xat E2E</li>
+            <li class="fragment">Sense estudi amb n alumnes</li>
+          </ul>
+        </div>
+        <aside class="notes">O6 parcial. Si pregunten ètica: PDF privats, RLS, cap a l'LLM surten fragments.</aside>
+      </section>
+
+      <section class="slide">
+        <div class="frame">
+          <p class="kicker">Tancament</p>
+          <h2>Sistema, no un notebook.</h2>
+          <ul class="stack center-text">
+            <li class="fragment">Hexàgon + híbrid amb intent + cicle SM-2</li>
+            <li class="fragment">O1–O5 al producte; O6 oberta on toca</li>
+            <li class="fragment">Futur: OCR, visor PDF, groundedness, E2E</li>
+          </ul>
+          <p class="meta fragment">
+            <a href="https://github.com/yanghao1005/rag-study-assistant">github.com/yanghao1005/rag-study-assistant</a>
+          </p>
+        </div>
+        <aside class="notes">Agraeix. Preguntes.</aside>
+      </section>
+    </div>
+
+    <div class="footer-bar">
+      <span>Studyraft · Hao Yang</span>
+      <span data-slide-num>1 / 29</span>
+    </div>
+    <div class="progress" aria-hidden="true"><span></span></div>
+    <div class="notes-panel" aria-live="polite"></div>
+    <script src="js/deck.js?v=5"></script>
+  </body>
+</html>

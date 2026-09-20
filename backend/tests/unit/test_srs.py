@@ -18,6 +18,14 @@ def test_first_good_review_sets_one_day() -> None:
     assert state.next_review_at is not None
 
 
+def test_second_good_review_sets_six_days() -> None:
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    first = apply_sm2(None, quality=4, now=now)
+    second = apply_sm2(first, quality=4, now=now)
+    assert second.repetitions == 2
+    assert second.interval_days == 6
+
+
 def test_again_resets_repetitions() -> None:
     now = datetime(2026, 1, 1, tzinfo=UTC)
     first = apply_sm2(None, quality=4, now=now)

@@ -23,6 +23,18 @@ export async function createSubject(
   });
 }
 
+export async function updateSubject(
+  token: string,
+  subjectId: string,
+  body: { name?: string; description?: string | null; color?: string | null },
+) {
+  return apiRequest<SubjectDto>(`/subjects/${subjectId}`, {
+    method: "PATCH",
+    token,
+    json: body,
+  });
+}
+
 export async function deleteSubject(token: string, subjectId: string) {
   return apiRequest<{ deleted: boolean }>(`/subjects/${subjectId}`, {
     method: "DELETE",

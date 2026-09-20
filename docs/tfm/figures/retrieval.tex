@@ -1,0 +1,19 @@
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, minimum height=0.85cm},
+  arr/.style={-{Latex}, thick}
+]
+\node[box] (q) {Pregunta};
+\node[box, right=0.45cm of q] (i) {Intent};
+\node[box, right=0.45cm of i] (e) {Embedding};
+\node[box, right=0.45cm of e] (d) {Dens + FTS};
+\node[box, below=0.55cm of d] (f) {RRF};
+\node[box, left=0.45cm of f] (r) {Rerank (opc.)};
+\node[box, left=0.45cm of r] (c) {Cites + LLM};
+\draw[arr] (q) -- (i);
+\draw[arr] (i) -- (e);
+\draw[arr] (e) -- (d);
+\draw[arr] (d) -- (f);
+\draw[arr] (f) -- (r);
+\draw[arr] (r) -- (c);
+\end{tikzpicture}

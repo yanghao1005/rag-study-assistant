@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
@@ -37,7 +38,20 @@ def create_app(
         worker = None
         if cfg.enable_async_ingestion:
             worker = resolved.create_ingestion_worker()
-            worker_task = asyncio.create_task(worker.run_forever())
+            worker_task = asyncio.create_task(worker.run_forever(), name="ingestion-worker")
+
+            def _log_worker_crash(task: asyncio.Task[None]) -> None:
+                if task.cancelled():
+                    return
+                exc = task.exception()
+                if exc is not None:
+                    logging.getLogger("uvicorn.error").error(
+                        "Ingestion worker crashed: %s",
+                        exc,
+                        exc_info=exc,
+                    )
+
+            worker_task.add_done_callback(_log_worker_crash)
         try:
             yield
         finally:

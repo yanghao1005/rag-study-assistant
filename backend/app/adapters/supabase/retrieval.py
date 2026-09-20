@@ -102,9 +102,9 @@ class SupabaseHybridRetrievalAdapter(VectorSearchPort):
         query_text: str,
         query_embedding: list[float],
         filters: RetrievalFilters,
-        match_count: int = 10,
+        match_count: int | None = None,
     ) -> HybridRetrievalResult:
-        final_k = match_count or self._final_top_k
+        final_k = self._final_top_k if match_count is None else match_count
         scoped = filters.resolved_document_ids()
         if len(scoped) > 1:
             parts = await asyncio.gather(

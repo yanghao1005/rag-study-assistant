@@ -1,0 +1,40 @@
+\chapter{Protocol d'avaluació reproduïble}
+\label{anexo:eval}
+
+\section{Qualitat}
+
+\begin{lstlisting}
+cd backend
+python -m pytest tests/unit -q
+python -m ruff check app tests
+python -m mypy app
+
+cd ../frontend
+pnpm exec tsc --noEmit
+pnpm test
+# pnpm build && pnpm test:e2e
+\end{lstlisting}
+
+\section{Benchmark de retrieval}
+
+Requereix \texttt{.env} amb Supabase i embeddings, més un \texttt{user-id} i \texttt{subject-id} reals:
+
+\begin{lstlisting}
+cd backend
+PYTHONPATH=. python -m app.entrypoints.cli.benchmark \
+  --user-id <uid> --subject-id <sid> \
+  --query "modelo de negocio" --query "propuesta de valor" \
+  --query "lienzo canvas" --query "startup" \
+  --query "innovacion" --query "financiacion" \
+  --query "mercado objetivo" --query "equipo fundador"
+\end{lstlisting}
+
+El CLI sempre mesura cerca híbrida. El run publicat (taula~\ref{tab:bench}) va deixar $k=10$ chunks (defecte aleshores del port). El run amb rerank es fa amb el proveïdor LLM de rerank activat a l'\texttt{.env}. La sortida (p50, max, chunks) és la taula~\ref{tab:bench}.
+
+\section{Integració real (opt-in)}
+
+\begin{lstlisting}
+# Windows PowerShell
+$env:RUN_REAL_INTEGRATION="1"
+python -m pytest tests/integration -v
+\end{lstlisting}

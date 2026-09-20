@@ -93,9 +93,25 @@ class SupabaseJobRepository(JobRepositoryPort):
         return _job_from_row(response.data[0])
 
     async def claim_next(self, *, job_types: list[str] | None = None) -> Job | None:
-        # Service-role path: optimistic claim without requiring public RPC.
-        # Prefer private.claim_next_job / public.claim_next_job when available
-        # for multi-worker SKIP LOCKED semantics (see migration 0007).
+        # Atomic SKIP LOCKED via public.claim_next_job (migration 0007).
+        # Optimistic SELECT+UPDATE remains a fallback if the RPC is missing.
+        try:
+            response = self._client.rpc(
+                "claim_next_job",
+                {"p_job_types": job_types},
+            ).execute()
+        except Exception:
+            return await self._claim_next_optimistic(job_types=job_types)
+
+        data = response.data
+        if not data:
+            return None
+        row = data[0] if isinstance(data, list) else data
+        if not isinstance(row, dict) or not row.get("id"):
+            return None
+        return _job_from_row(row)
+
+    async def _claim_next_optimistic(self, *, job_types: list[str] | None = None) -> Job | None:
         query = (
             self._client.table("jobs")
             .select("*")

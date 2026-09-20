@@ -1,0 +1,16 @@
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt,
+    minimum width=2.7cm, minimum height=1.15cm},
+  arr/.style={-{Latex}, thick}
+]
+\node[box] (ui) {Next.js\\UI i sessió};
+\node[box, right=1.25cm of ui] (api) {FastAPI\\casos d'ús + worker};
+\node[box, below left=0.95cm and 1.15cm of api] (sto) {Storage\\bytes del PDF};
+\node[box, below=0.95cm of api] (db) {Postgres\\files i vectors};
+\node[box, below right=0.95cm and 1.15cm of api] (llm) {LLM\\embed i xat};
+\draw[arr] (ui) -- node[above, font=\tiny] {HTTPS + JWT} (api);
+\draw[arr] (api) -- (sto);
+\draw[arr] (api) -- (db);
+\draw[arr] (api) -- (llm);
+\end{tikzpicture}

@@ -1,0 +1,11 @@
+\chapter*{Resum}
+\addcontentsline{toc}{chapter}{Resum}
+
+Aquest treball presenta \emph{Studyraft}, un assistent d'estudi que converteix els PDF propis en un cicle tancat: assignatures, ingestió asíncrona, xat amb cites al fragment d'origen, biblioteca de flashcards i qüestionaris, i repàs amb repetició espaiada (SM-2).
+
+El mètode és un sistema d'enginyeria: arquitectura hexagonal (FastAPI i Next.js, dades a Supabase amb \texttt{pgvector} i RLS), recuperació híbrida (densa, lèxica i fusió RRF), sinopsi de document activa per defecte, i SM-2 al domini. El rerank amb LLM i una passada agentic existeixen com a flags, apagats per defecte.
+
+A data d'1 de setembre de 2026, el backend té 63 tests unitaris verds (\texttt{ruff} i \texttt{mypy} nets); el frontend, 4 tests Vitest i 2 smokes Playwright. Sobre 114 chunks, el retrieval híbrid té p50 de 369\,ms (8 consultes factuals, $k=10$ en aquell run); amb rerank LLM, 1\,608\,ms. L'avaluació mesura programari, latència i un recorregut qualitatiu del cicle; no tanca fidelitat (groundedness).
+
+\paragraph{Paraules clau.}
+\tfmKeywordsCA

@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { FadeIn, Stagger, StaggerItem } from "@/components/motion/fade-in";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -52,6 +53,9 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
   const remove = useDeleteDocument(subjectId);
   const reindex = useReindexDocument(subjectId);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; filename: string } | null>(
+    null,
+  );
   const [pending, startTransition] = useTransition();
 
   const job = useJobStatus(activeJobId, Boolean(activeJobId));
@@ -200,18 +204,9 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-destructive opacity-100 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100"
+                    className="text-destructive"
                     disabled={remove.isPending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        try {
-                          await remove.mutateAsync(doc.id);
-                          toast.success("Documento eliminado");
-                        } catch (err) {
-                          toast.error(err instanceof Error ? err.message : "No se pudo eliminar");
-                        }
-                      });
-                    }}
+                    onClick={() => setPendingDelete({ id: doc.id, filename: doc.filename })}
                   >
                     Eliminar
                   </Button>
@@ -221,6 +216,33 @@ export function DocumentsManager({ subjectId }: { subjectId: string }) {
           ))}
         </Stagger>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+          }
+        }}
+        title={pendingDelete ? `¿Eliminar “${pendingDelete.filename}”?` : "¿Eliminar documento?"}
+        description="Se quitará de esta asignatura y dejará de usarse en chat y práctica."
+        pending={remove.isPending}
+        onConfirm={() => {
+          if (!pendingDelete) {
+            return;
+          }
+          const documentId = pendingDelete.id;
+          startTransition(async () => {
+            try {
+              await remove.mutateAsync(documentId);
+              toast.success("Documento eliminado");
+              setPendingDelete(null);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "No se pudo eliminar");
+            }
+          });
+        }}
+      />
     </div>
   );
 }

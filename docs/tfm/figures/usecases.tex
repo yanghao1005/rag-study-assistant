@@ -1,0 +1,19 @@
+\begin{tikzpicture}[
+  font=\small,
+  actor/.style={draw, rounded corners=2pt, align=center, inner sep=4pt, minimum width=2.2cm},
+  uc/.style={draw, ellipse, align=center, inner sep=3pt, minimum width=3.3cm, minimum height=0.85cm}
+]
+\node[actor] (est) {Estudiant\\autenticat};
+\node[uc, right=1.6cm of est] (asig) {Gestionar assignatures};
+\node[uc, below=0.28cm of asig] (pdf) {Pujar i indexar PDF};
+\node[uc, below=0.28cm of pdf] (xat) {Preguntar amb cites};
+\node[uc, below=0.28cm of xat] (gen) {Generar i editar pràctica};
+\node[uc, below=0.28cm of gen] (srs) {Repassar (SM-2)};
+\node[actor, right=1.5cm of gen] (wrk) {Worker\\d'ingestió};
+\draw (est.east) -- (asig.west);
+\draw (est.east) -- (pdf.west);
+\draw (est.east) -- (xat.west);
+\draw (est.east) -- (gen.west);
+\draw (est.east) -- (srs.west);
+\draw (wrk.west) -- (pdf.east);
+\end{tikzpicture}
