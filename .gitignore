@@ -88,6 +88,9 @@ Desktop.ini
 uploads/
 debug_artifacts/
 benchmark_reports/
+
+# TFM LaTeX / static deck notes stay local. The live presentation is frontend/src/features/presentacio.
+docs/
 test-results/
 playwright-report/
 blob-report/

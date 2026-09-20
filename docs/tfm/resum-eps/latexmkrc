@@ -1,7 +1,0 @@
-# Resum EPS: Times New Roman via XeLaTeX; sortida a docs/tfm/build
-$pdf_mode = 5;
-$out_dir = '../build';
-$aux_dir = '../build';
-$interaction = 'nonstopmode';
-$xelatex = 'xelatex -synctex=1 -interaction=nonstopmode %O %S';
-$bibtex_use = 0;
